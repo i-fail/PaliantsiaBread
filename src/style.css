@@ -146,3 +146,12 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .buy-price { margin: 0 0 6px; color: #765035; font-size: 20px; font-weight: 600; }
 .product-info .buy-price { font-size: 26px; margin-bottom: 10px; }
 .buy-shipping { margin: 0 0 6px; color: #365c35; font-size: 13px; font-weight: 600; }
+.footer-link:hover { color: #926443; }
+.contact-main h1 { margin-bottom: 28px; }
+.contact-details { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 32px 48px; max-width: 720px; }
+.contact-details h2 { margin: 0 0 10px; font-family: Georgia, 'Times New Roman', serif; font-size: 24px; font-weight: 400; }
+.contact-details address { font-style: normal; line-height: 1.7; }
+.contact-details p { margin: 12px 0 0; }
+.contact-link { color: #765035; text-decoration: underline; }
+.header-nav { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px 28px; }
+@media (max-width: 680px) { .header-link { font-size: 17px; } .header-nav { gap: 6px 18px; } }

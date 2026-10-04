@@ -32,7 +32,10 @@ onMounted(loadContent)
       <a class="brand" href="#top" aria-label="Palianytsia Bread home">
         <img class="brand-logo" src="/uploads/paliantsia_horiz.svg" alt="Palianytsia Bread" width="224" height="44" />
       </a>
-      <RouterLink class="header-link" to="/buy">Buy bread</RouterLink>
+      <nav class="header-nav" aria-label="Main">
+        <RouterLink class="header-link" to="/buy">Buy bread</RouterLink>
+        <RouterLink class="header-link" to="/contact">Contact</RouterLink>
+      </nav>
     </header>
 
     <main id="main">
@@ -87,6 +90,7 @@ onMounted(loadContent)
 
     <footer class="site-footer">
       <p>© {{ year }} Palianytsia Bread</p>
+      <RouterLink class="footer-link" to="/contact">Contact</RouterLink>
       <p class="footer-note"><span class="ukraine-mark" aria-hidden="true"></span> Rooted in Ukrainian tradition.</p>
     </footer>
   </div>

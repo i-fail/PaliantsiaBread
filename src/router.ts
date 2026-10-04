@@ -7,6 +7,7 @@ export const router = createRouter({
     { path: '/', component: () => import('./HomePage.vue') },
     { path: '/buy', component: () => import('./BuyPage.vue') },
     { path: '/buy/:slug', component: () => import('./ProductPage.vue') },
+    { path: '/contact', component: () => import('./ContactPage.vue') },
     { path: '/admin', redirect: '/admin/front' },
     // One route record for both tabs, so the page stays mounted (and keeps unsaved edits) when switching.
     { path: '/admin/:tab(front|products)', component: () => import('./AdminPage.vue') },
