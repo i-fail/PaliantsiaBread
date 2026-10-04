@@ -8,22 +8,23 @@ export function shippingBoxes(shippedUnits: number): number {
 export interface PricedLine {
   priceCents: number
   quantity: number
-  shippingAvailable: boolean
+  // True when the product can be shipped and the customer chose shipping rather than pickup.
+  shipped: boolean
 }
 
 export interface CartTotals {
   subtotalCents: number
-  // Products in the cart that will be shipped (those with shipping available), counting quantities.
+  // Products that will be shipped (not picked up), counting quantities.
   shippedUnits: number
   boxes: number
   shippingCents: number
   totalCents: number
 }
 
-// Products without shipping are charged only their price; shipped ones also add the cost of their boxes.
+// Products that are picked up are charged only their price; shipped ones also add the cost of their boxes.
 export function cartTotals(lines: PricedLine[]): CartTotals {
   const subtotalCents = lines.reduce((total, line) => total + line.priceCents * line.quantity, 0)
-  const shippedUnits = lines.reduce((total, line) => total + (line.shippingAvailable ? line.quantity : 0), 0)
+  const shippedUnits = lines.reduce((total, line) => total + (line.shipped ? line.quantity : 0), 0)
   const boxes = shippingBoxes(shippedUnits)
   const shippingCents = boxes * shippingBox.cents
   return { subtotalCents, shippedUnits, boxes, shippingCents, totalCents: subtotalCents + shippingCents }

@@ -209,3 +209,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
   .checkout-item.is-unavailable { grid-template-columns: 1fr; }
   .checkout-item.is-unavailable .checkout-remove { grid-column: 1; }
 }
+.checkout-delivery { display: flex; flex-wrap: wrap; gap: 2px 14px; align-items: center; margin-top: 4px; font-size: 14px; }
+.checkout-delivery-label { color: #6a6055; font-size: 13px; }
+.checkout-delivery label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; white-space: nowrap; }
+.checkout-delivery input { margin: 0; }
+.checkout-pickup-note { margin: 12px 0 0; }

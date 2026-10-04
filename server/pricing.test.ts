@@ -9,8 +9,8 @@ describe('shipping boxes', () => {
 })
 
 describe('cart totals', () => {
-  const rye = { priceCents: 1000, quantity: 1, shippingAvailable: true }
-  const cake = { priceCents: 3000, quantity: 1, shippingAvailable: false }
+  const rye = { priceCents: 1000, quantity: 1, shipped: true }
+  const cake = { priceCents: 3000, quantity: 1, shipped: false }
 
   test('an empty cart costs nothing', () => {
     expect(cartTotals([])).toEqual({ subtotalCents: 0, shippedUnits: 0, boxes: 0, shippingCents: 0, totalCents: 0 })
@@ -35,10 +35,18 @@ describe('cart totals', () => {
   })
 
   test('different shipped products share boxes', () => {
-    const totals = cartTotals([{ ...rye, quantity: 2 }, { priceCents: 400, quantity: 1, shippingAvailable: true }])
+    const totals = cartTotals([{ ...rye, quantity: 2 }, { priceCents: 400, quantity: 1, shipped: true }])
     expect(totals.shippedUnits).toBe(3)
     expect(totals.boxes).toBe(1)
     expect(totals.totalCents).toBe(2400 + 2000)
+  })
+
+  test('items chosen for pickup do not count toward shipping', () => {
+    // Four Rye would need two boxes, but two of them are picked up, so one box is enough.
+    const totals = cartTotals([{ ...rye, quantity: 2 }, { ...rye, quantity: 2, shipped: false }])
+    expect(totals).toEqual({ subtotalCents: 4000, shippedUnits: 2, boxes: 1, shippingCents: 2000, totalCents: 6000 })
+    // Everything picked up: no shipping at all.
+    expect(cartTotals([{ ...rye, quantity: 7, shipped: false }]).shippingCents).toBe(0)
   })
 
   test('products that cannot be shipped neither fill boxes nor add shipping', () => {

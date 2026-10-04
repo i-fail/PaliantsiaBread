@@ -69,7 +69,7 @@ Public endpoints: `GET /api/products` and `GET /api/products/:slug` (enabled pro
 
 "Add to cart" on `/buy` and the product pages puts a product in the visitor's cart, which is kept in their browser (`localStorage`) as product ids and quantities. The header shows a cart icon with the item count, linking to `/checkout`. There, visitors change quantities (1-99) or remove items; prices always come from the current product list, and items that are no longer available are flagged and left out of the totals.
 
-Shipping is calculated in `shared/pricing.ts`: products with shipping available are packed three per box (across different products), and each box costs $20. Products without shipping are charged only their price and take no space in a box. Checkout currently only shows the order summary; taking payment and placing orders is not built yet.
+Shipping is calculated in `shared/pricing.ts`: products that are shipped are packed three per box (across different products), and each box costs $20. Products with shipping available get a Ship / Pickup choice on the checkout page (Ship by default, saved with the cart, applying to that product's whole quantity); products without shipping are "Pickup only". Items for pickup are charged only their price and take no space in a box. Checkout currently only shows the order summary; taking payment and placing orders is not built yet.
 
 ## Contact form
 

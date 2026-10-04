@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { cartTotals, shippingBox } from '../shared/pricing'
 import { formatPrice, type Product } from '../shared/products'
-import { cartItems, maxQuantity, removeFromCart, setQuantity } from './cart'
+import { cartItems, maxQuantity, removeFromCart, setDelivery, setQuantity } from './cart'
 import CartIndicator from './CartIndicator.vue'
 import { listPublicProducts } from './products-api'
 
@@ -30,15 +30,17 @@ const lines = computed(() => {
   return cartItems.value.map(item => {
     const product = byId.get(item.productId)
     // A product that was disabled, deleted, or never priced cannot be bought.
-    return { quantity: item.quantity, productId: item.productId, product: product && product.priceCents !== null ? product : null }
+    return { quantity: item.quantity, delivery: item.delivery, productId: item.productId, product: product && product.priceCents !== null ? product : null }
   })
 })
 
 const totals = computed(() => cartTotals(lines.value.flatMap(line => line.product
-  ? [{ priceCents: line.product.priceCents!, quantity: line.quantity, shippingAvailable: line.product.shippingAvailable }]
+  ? [{ priceCents: line.product.priceCents!, quantity: line.quantity, shipped: line.product.shippingAvailable && line.delivery === 'ship' }]
   : [])))
 
 const hasAvailable = computed(() => lines.value.some(line => line.product))
+// Units the customer will collect themselves: everything available that is not being shipped.
+const pickupUnits = computed(() => lines.value.reduce((total, line) => total + (line.product ? line.quantity : 0), 0) - totals.value.shippedUnits)
 const plural = (count: number, one: string, many = `${one}s`) => `${count} ${count === 1 ? one : many}`
 
 function mainPhoto(product: Product) {
@@ -90,8 +92,12 @@ onMounted(load)
               <div class="checkout-info">
                 <RouterLink class="checkout-title" :to="`/buy/${line.product.slug}`">{{ line.product.title }}</RouterLink>
                 <span class="checkout-unit">{{ formatPrice(line.product.priceCents!) }} each</span>
-                <span v-if="line.product.shippingAvailable" class="buy-shipping">Shipping available</span>
-                <span v-else class="checkout-no-shipping">Shipping not available</span>
+                <div v-if="line.product.shippingAvailable" class="checkout-delivery" role="radiogroup" :aria-label="`Delivery for ${line.product.title}`">
+                  <span class="checkout-delivery-label" aria-hidden="true">Delivery:</span>
+                  <label><input type="radio" :name="`delivery-${line.productId}`" value="ship" :checked="line.delivery === 'ship'" @change="setDelivery(line.productId, 'ship')" /> Ship</label>
+                  <label><input type="radio" :name="`delivery-${line.productId}`" value="pickup" :checked="line.delivery === 'pickup'" @change="setDelivery(line.productId, 'pickup')" /> Pickup</label>
+                </div>
+                <span v-else class="checkout-no-shipping">Pickup only</span>
               </div>
               <div class="checkout-quantity">
                 <label :for="`quantity-${line.productId}`">Quantity<span class="sr-only"> of {{ line.product.title }}</span></label>
@@ -117,7 +123,8 @@ onMounted(load)
             </div>
             <div class="checkout-total"><dt>Total</dt><dd>{{ formatPrice(totals.totalCents) }}</dd></div>
           </dl>
-          <p class="admin-help">Shipping is {{ formatPrice(shippingBox.cents) }} per box, and each box holds up to {{ shippingBox.capacity }} products. Products without shipping are charged only their price.</p>
+          <p v-if="pickupUnits > 0" class="admin-help checkout-pickup-note">{{ plural(pickupUnits, 'item') }} for pickup, with no shipping charge.</p>
+          <p class="admin-help">Shipping is {{ formatPrice(shippingBox.cents) }} per box, and each box holds up to {{ shippingBox.capacity }} products. Items for pickup are charged only their price.</p>
         </section>
       </div>
     </main>

@@ -28,8 +28,11 @@ test('shows each item, its line total, and the order summary with shipping', asy
   await expect(items.nth(0)).toContainText('Rye')
   await expect(items.nth(0)).toContainText('$10.00 each')
   await expect(items.nth(0)).toContainText('$20.00')
-  await expect(items.nth(0)).toContainText('Shipping available')
-  await expect(items.nth(2)).toContainText('Shipping not available')
+  // Shippable products offer a choice and ship by default (also for carts saved before the choice existed).
+  await expect(items.nth(0).getByRole('radio', { name: 'Ship' })).toBeChecked()
+  await expect(items.nth(0).getByRole('radio', { name: 'Pickup' })).not.toBeChecked()
+  await expect(items.nth(2).getByRole('radio')).toHaveCount(0)
+  await expect(items.nth(2)).toContainText('Pickup only')
 
   await expect(summary(page)).toContainText('Items$54.00')
   await expect(summary(page)).toContainText('1 box for 3 shipped items$20.00')
@@ -140,4 +143,55 @@ test('prices can be reloaded when they fail to load', async ({ page }) => {
   available = true
   await page.getByRole('button', { name: 'Try again' }).click()
   await expect(summary(page)).toContainText('Total$30.00')
+})
+
+test('items chosen for pickup are left out of the shipping calculation', async ({ page }) => {
+  // 2 Rye + 1 Bagel are shipped: 3 products, one box.
+  await setUp(page, [{ productId: 1, quantity: 2 }, { productId: 2, quantity: 1 }, { productId: 3, quantity: 1 }])
+  await page.goto('/checkout')
+  await expect(summary(page)).toContainText('1 box for 3 shipped items$20.00')
+  await expect(summary(page)).toContainText('Total$74.00')
+
+  // Picking up the Rye leaves one shipped item: still one box, but the note appears.
+  await page.getByRole('radiogroup', { name: 'Delivery for Rye' }).getByRole('radio', { name: 'Pickup' }).check()
+  await expect(summary(page)).toContainText('1 box for 1 shipped item$20.00')
+  await expect(summary(page)).toContainText('Total$74.00')
+  await expect(summary(page)).toContainText('3 items for pickup, with no shipping charge.')
+
+  // Picking up the Bagel too means nothing ships, so there is no shipping charge at all.
+  await page.getByRole('radiogroup', { name: 'Delivery for Bagel' }).getByRole('radio', { name: 'Pickup' }).check()
+  await expect(summary(page)).toContainText('ShippingNone')
+  await expect(summary(page)).toContainText('Items$54.00')
+  await expect(summary(page)).toContainText('Total$54.00')
+  await expect(summary(page)).toContainText('4 items for pickup')
+
+  // Switching back to shipping restores the charge.
+  await page.getByRole('radiogroup', { name: 'Delivery for Rye' }).getByRole('radio', { name: 'Ship' }).check()
+  await expect(summary(page)).toContainText('1 box for 2 shipped items$20.00')
+  await expect(summary(page)).toContainText('Total$74.00')
+})
+
+test('picking up part of a large order can save a whole box', async ({ page }) => {
+  // 4 Rye would need two boxes ($40); the Bagels ship, the Rye is picked up.
+  await setUp(page, [{ productId: 1, quantity: 4 }, { productId: 2, quantity: 2 }])
+  await page.goto('/checkout')
+  await expect(summary(page)).toContainText('2 boxes for 6 shipped items$40.00')
+  await page.getByRole('radiogroup', { name: 'Delivery for Rye' }).getByRole('radio', { name: 'Pickup' }).check()
+  await expect(summary(page)).toContainText('1 box for 2 shipped items$20.00')
+  await expect(summary(page)).toContainText('Total$68.00')
+})
+
+test('the delivery choice is remembered and applies to the whole quantity of a product', async ({ page }) => {
+  await setUp(page, [{ productId: 1, quantity: 3 }])
+  await page.goto('/checkout')
+  await page.getByRole('radio', { name: 'Pickup' }).check()
+  await expect(summary(page)).toContainText('ShippingNone')
+  await page.getByLabel('Quantity of Rye').fill('5')
+  await page.getByLabel('Quantity of Rye').blur()
+  await expect(summary(page)).toContainText('ShippingNone')
+  await expect(summary(page)).toContainText('5 items for pickup')
+
+  await page.reload()
+  await expect(page.getByRole('radio', { name: 'Pickup' })).toBeChecked()
+  await expect(summary(page)).toContainText('Total$50.00')
 })

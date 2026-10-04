@@ -1,8 +1,12 @@
 import { computed, ref } from 'vue'
 
+export type Delivery = 'ship' | 'pickup'
+
 export interface CartItem {
   productId: number
   quantity: number
+  // Only matters for products that can be shipped; products without shipping are always picked up.
+  delivery: Delivery
 }
 
 const storageKey = 'palianytsia-cart'
@@ -13,10 +17,15 @@ function load(): CartItem[] {
   try {
     const stored = JSON.parse(localStorage.getItem(storageKey) ?? '[]')
     if (!Array.isArray(stored)) return []
-    return stored.filter((item): item is CartItem =>
+    return stored.filter((item): item is Omit<CartItem, 'delivery'> & { delivery?: unknown } =>
       Number.isInteger(item?.productId) && item.productId > 0
       && Number.isInteger(item?.quantity) && item.quantity > 0)
-      .map(item => ({ productId: item.productId, quantity: Math.min(item.quantity, maxQuantity) }))
+      .map(item => ({
+        productId: item.productId,
+        quantity: Math.min(item.quantity, maxQuantity),
+        // Carts saved before this choice existed ship by default.
+        delivery: item.delivery === 'pickup' ? 'pickup' as const : 'ship' as const,
+      }))
   } catch {
     return []
   }
@@ -38,7 +47,7 @@ export const cartCount = computed(() => items.value.reduce((total, item) => tota
 export function addToCart(productId: number) {
   const existing = items.value.find(item => item.productId === productId)
   if (existing) existing.quantity = Math.min(existing.quantity + 1, maxQuantity)
-  else items.value.push({ productId, quantity: 1 })
+  else items.value.push({ productId, quantity: 1, delivery: 'ship' })
   save()
 }
 
@@ -47,6 +56,13 @@ export function setQuantity(productId: number, quantity: number) {
   const existing = items.value.find(item => item.productId === productId)
   if (!existing || !Number.isFinite(quantity)) return
   existing.quantity = Math.min(Math.max(Math.trunc(quantity), 1), maxQuantity)
+  save()
+}
+
+export function setDelivery(productId: number, delivery: Delivery) {
+  const existing = items.value.find(item => item.productId === productId)
+  if (!existing) return
+  existing.delivery = delivery
   save()
 }
 
