@@ -15,6 +15,7 @@ export interface Product {
   enabled: boolean
   // Whole cents in `currency`; null for products that have no price yet.
   priceCents: number | null
+  shippingAvailable: boolean
   // The photo marked as main, or the first uploaded photo when none is marked.
   mainPhotoId: number | null
   photos: ProductPhoto[]
@@ -26,6 +27,7 @@ export interface ProductInput {
   description: string
   enabled: boolean
   priceCents: number | null
+  shippingAvailable: boolean
 }
 
 export const productLimits = {

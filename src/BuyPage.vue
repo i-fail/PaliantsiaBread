@@ -51,6 +51,7 @@ onMounted(load)
           </RouterLink>
           <h2><RouterLink :to="`/buy/${product.slug}`">{{ product.title }}</RouterLink></h2>
           <p v-if="product.priceCents !== null" class="buy-price">{{ formatPrice(product.priceCents) }}</p>
+          <p v-if="product.shippingAvailable" class="buy-shipping">Shipping available</p>
           <p class="buy-sku">SKU {{ product.sku }}</p>
           <p v-if="product.description" class="buy-description">{{ product.description }}</p>
         </li>

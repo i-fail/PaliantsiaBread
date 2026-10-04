@@ -145,3 +145,4 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .buy-card .buy-description { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 6; line-clamp: 6; overflow: hidden; }
 .buy-price { margin: 0 0 6px; color: #765035; font-size: 20px; font-weight: 600; }
 .product-info .buy-price { font-size: 26px; margin-bottom: 10px; }
+.buy-shipping { margin: 0 0 6px; color: #365c35; font-size: 13px; font-weight: 600; }

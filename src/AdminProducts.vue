@@ -14,7 +14,7 @@ const error = ref('')
 const message = ref('')
 const selected = ref<number | 'new' | null>(null)
 // The price is kept as typed ("12.50") and converted to whole cents when saving.
-const form = reactive({ sku: '', title: '', description: '', enabled: true, price: '' })
+const form = reactive({ sku: '', title: '', description: '', enabled: true, shippingAvailable: false, price: '' })
 const saved = ref('')
 const saving = ref(false)
 const busy = ref(false)
@@ -46,8 +46,8 @@ function replace(product: Product) {
 
 function fill(product: Product | null) {
   Object.assign(form, product
-    ? { sku: product.sku, title: product.title, description: product.description, enabled: product.enabled, price: product.priceCents === null ? '' : priceToInput(product.priceCents) }
-    : { sku: '', title: '', description: '', enabled: true, price: '' })
+    ? { sku: product.sku, title: product.title, description: product.description, enabled: product.enabled, shippingAvailable: product.shippingAvailable, price: product.priceCents === null ? '' : priceToInput(product.priceCents) }
+    : { sku: '', title: '', description: '', enabled: true, shippingAvailable: false, price: '' })
   saved.value = JSON.stringify(form)
 }
 
@@ -112,8 +112,8 @@ async function toggle(product: Product) {
   error.value = ''
   message.value = ''
   try {
-    const { sku, title, description, priceCents } = product
-    replace(await api.updateProduct(product.id, { sku, title, description, enabled: !product.enabled, priceCents }))
+    const { sku, title, description, priceCents, shippingAvailable } = product
+    replace(await api.updateProduct(product.id, { sku, title, description, enabled: !product.enabled, priceCents, shippingAvailable }))
     if (selected.value === product.id) {
       // Reflect the new state in the open form without touching other unsaved edits.
       form.enabled = !product.enabled
@@ -316,6 +316,7 @@ onMounted(load)
             <textarea id="product-description" v-model="form.description" rows="6" :maxlength="productLimits.description" @input="message = ''"></textarea>
           </div>
           <label class="checkbox-field"><input v-model="form.enabled" type="checkbox" @change="message = ''" /> Enabled — show on the buy page</label>
+          <label class="checkbox-field"><input v-model="form.shippingAvailable" type="checkbox" @change="message = ''" /> Shipping available</label>
         </fieldset>
         <div class="editor-actions">
           <button class="action-button" type="submit" :disabled="saving || !dirty || !skuValid || priceCents === null">{{ saving ? 'Saving…' : current ? 'Save product' : 'Create product' }}</button>

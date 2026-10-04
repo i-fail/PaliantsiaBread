@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 
 interface Photo { id: number; url: string; width: number; height: number }
-interface Product { id: number; slug: string; sku: string; title: string; description: string; enabled: boolean; priceCents: number | null; mainPhotoId: number | null; photos: Photo[] }
+interface Product { id: number; slug: string; sku: string; title: string; description: string; enabled: boolean; priceCents: number | null; shippingAvailable?: boolean; mainPhotoId: number | null; photos: Photo[] }
 
 // 1x1 PNG, served for every photo URL.
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64')
@@ -309,4 +309,48 @@ test('buy page leaves out the price for a product that has none', async ({ page 
   await page.goto('/buy')
   await expect(page.getByRole('heading', { name: 'Rye loaf' })).toBeVisible()
   await expect(page.locator('.buy-price')).toHaveCount(0)
+})
+
+test('shipping available defaults to off, is saved with the product, and can be changed', async ({ page }) => {
+  const products: Product[] = []
+  await mockApi(page, products)
+  await page.goto('/admin/products')
+  const panel = page.locator('#products-panel')
+  await panel.getByRole('button', { name: 'Add product' }).click()
+  const shipping = panel.getByLabel('Shipping available')
+  await expect(shipping).not.toBeChecked()
+  await panel.getByLabel('SKU').fill('SHIP-1')
+  await panel.getByLabel('Title').fill('Shippable loaf')
+  await panel.locator('#product-price').fill('9')
+  await shipping.check()
+  await panel.getByRole('button', { name: 'Create product' }).click()
+  await expect(panel.getByRole('status').filter({ hasText: 'Product saved.' })).toBeVisible()
+  expect(products[0]!.shippingAvailable).toBe(true)
+  await expect(shipping).toBeChecked()
+
+  await shipping.uncheck()
+  await panel.getByRole('button', { name: 'Save product' }).click()
+  await expect(panel.getByRole('status').filter({ hasText: 'Product saved.' })).toBeVisible()
+  expect(products[0]!.shippingAvailable).toBe(false)
+
+  // Enabling or disabling from the list must not change the shipping setting.
+  await shipping.check()
+  await panel.getByRole('button', { name: 'Save product' }).click()
+  await expect(panel.getByRole('status').filter({ hasText: 'Product saved.' })).toBeVisible()
+  await page.getByRole('button', { name: 'Disable Shippable loaf' }).click()
+  await expect(page.getByRole('button', { name: 'Enable Shippable loaf' })).toBeVisible()
+  expect(products[0]!.shippingAvailable).toBe(true)
+})
+
+test('buy and product pages say when shipping is available', async ({ page }) => {
+  const shippable = { ...rye, shippingAvailable: true, photos: [] }
+  const pickup = { ...rye, id: 2, slug: 'pickup-only', title: 'Pickup loaf', shippingAvailable: false, photos: [] }
+  await page.route('**/api/products', route => route.fulfill({ json: [shippable, pickup] }))
+  await page.route('**/api/products/rye-loaf', route => route.fulfill({ json: shippable }))
+  await page.goto('/buy')
+  await expect(page.locator('.buy-card')).toHaveCount(2)
+  await expect(page.locator('.buy-card', { hasText: 'Rye loaf' }).locator('.buy-shipping')).toHaveText('Shipping available')
+  await expect(page.locator('.buy-card', { hasText: 'Pickup loaf' }).locator('.buy-shipping')).toHaveCount(0)
+  await page.goto('/buy/rye-loaf')
+  await expect(page.locator('.product-info .buy-shipping')).toHaveText('Shipping available')
 })

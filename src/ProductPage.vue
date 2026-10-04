@@ -76,6 +76,7 @@ watch(() => route.params.slug, load, { immediate: true })
           <RouterLink class="back-link" to="/buy">← All bread</RouterLink>
           <h1>{{ product.title }}</h1>
           <p v-if="product.priceCents !== null" class="buy-price">{{ formatPrice(product.priceCents) }}</p>
+          <p v-if="product.shippingAvailable" class="buy-shipping">Shipping available</p>
           <p class="buy-sku">SKU {{ product.sku }}</p>
           <p v-if="product.description" class="buy-description">{{ product.description }}</p>
         </div>

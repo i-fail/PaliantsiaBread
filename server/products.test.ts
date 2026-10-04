@@ -5,7 +5,7 @@ import { ContentValidationError } from './content'
 import { processPhoto } from './photos'
 import { cleanProductInput, cleanProductOrder } from './products'
 
-const valid = { sku: 'RYE-01', title: 'Rye loaf', description: 'Dark rye.', enabled: true, priceCents: 1250 }
+const valid = { sku: 'RYE-01', title: 'Rye loaf', description: 'Dark rye.', enabled: true, priceCents: 1250, shippingAvailable: true }
 
 describe('product validation', () => {
   test('accepts and trims valid input', () => {
@@ -25,6 +25,14 @@ describe('product validation', () => {
     }
     expect(cleanProductInput({ ...valid, priceCents: 1 }).priceCents).toBe(1)
     expect(cleanProductInput({ ...valid, priceCents: maxPriceCents }).priceCents).toBe(maxPriceCents)
+  })
+
+  test('requires shipping availability to be a true or false value', () => {
+    expect(cleanProductInput({ ...valid, shippingAvailable: false }).shippingAvailable).toBe(false)
+    const { shippingAvailable: _omitted, ...withoutShipping } = valid
+    for (const input of [withoutShipping, { ...valid, shippingAvailable: 'yes' }, { ...valid, shippingAvailable: 1 }, { ...valid, shippingAvailable: null }]) {
+      expect(() => cleanProductInput(input)).toThrow(ContentValidationError)
+    }
   })
 
   test('keeps markup as plain text instead of interpreting it', () => {
