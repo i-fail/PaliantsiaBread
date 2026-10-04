@@ -86,3 +86,7 @@ The production frontend is generated in `dist/`, or in the folder named by `BUIL
 - Edit homepage copy at `/admin`; the initial content lives in `server/migrations/001_front_page_content.sql`. The homepage layout is in `src/HomePage.vue`, and the `/buy` page, which lists enabled products, is in `src/BuyPage.vue`. Routes are defined in `src/router.ts`. Colors, spacing, and responsive layout are in `src/style.css`.
 
 The page uses Google Fonts for body text, with system fallbacks when offline. The headline uses the local Georgia serif font.
+
+## Production nginx
+
+`nginx/prod/palianytsia.conf` is a ready-to-install nginx site that serves the built frontend from `/home/pal/pal_website/dist` and forwards `/api/` to the API on `127.0.0.1:38417`, over plain HTTP on port 80. The installation steps are at the top of the file. It does not use HTTPS yet, so run the API without `NODE_ENV=production` until HTTPS is set up (the Secure session cookie is not stored over HTTP, which breaks admin login).
