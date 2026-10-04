@@ -14,7 +14,7 @@ async function mockShop(page: Page) {
   await page.route('**/api/products/rye', route => route.fulfill({ json: rye }))
 }
 
-const cart = (page: Page) => page.getByRole('navigation', { name: 'Main' }).getByRole('img', { name: /^Cart:/ })
+const cart = (page: Page) => page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: /^Cart:/ })
 
 test('the cart appears in the header once something is added, and counts every addition', async ({ page }) => {
   await mockShop(page)

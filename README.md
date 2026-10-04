@@ -65,6 +65,12 @@ The **Products page** tab in `/admin` lists products and lets you add and edit t
 
 Public endpoints: `GET /api/products` and `GET /api/products/:slug` (enabled products only) and `GET /api/product-photos/:id`. All other product endpoints are under `/api/admin/products` and require a session.
 
+## Cart and checkout
+
+"Add to cart" on `/buy` and the product pages puts a product in the visitor's cart, which is kept in their browser (`localStorage`) as product ids and quantities. The header shows a cart icon with the item count, linking to `/checkout`. There, visitors change quantities (1-99) or remove items; prices always come from the current product list, and items that are no longer available are flagged and left out of the totals.
+
+Shipping is calculated in `shared/pricing.ts`: products with shipping available are packed three per box (across different products), and each box costs $20. Products without shipping are charged only their price and take no space in a box. Checkout currently only shows the order summary; taking payment and placing orders is not built yet.
+
 ## Contact form
 
 The form on `/contact` (name, email, message) emails its contents to `CONTACT_TO_EMAIL` through [Mailtrap](https://mailtrap.io)'s sending API. The visitor's address is set as the reply-to, so replying from the inbox answers them. Configure it in `.env` (see `.env.example`):

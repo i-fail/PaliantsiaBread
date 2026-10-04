@@ -42,6 +42,19 @@ export function addToCart(productId: number) {
   save()
 }
 
+// Sets a line's quantity, kept between 1 and the maximum. Removing a line is a separate action.
+export function setQuantity(productId: number, quantity: number) {
+  const existing = items.value.find(item => item.productId === productId)
+  if (!existing || !Number.isFinite(quantity)) return
+  existing.quantity = Math.min(Math.max(Math.trunc(quantity), 1), maxQuantity)
+  save()
+}
+
+export function removeFromCart(productId: number) {
+  items.value = items.value.filter(item => item.productId !== productId)
+  save()
+}
+
 // Keep several open tabs in step.
 window.addEventListener('storage', event => {
   if (event.key === storageKey) items.value = load()
