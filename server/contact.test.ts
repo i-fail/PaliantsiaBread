@@ -46,11 +46,11 @@ describe('mail configuration', () => {
 })
 
 describe('sending through Mailtrap', () => {
-  function capture(status = 200) {
+  function capture(status = 200, responseBody = '{}') {
     const calls: { url: string; init: RequestInit }[] = []
     const fake = (async (url: string, init: RequestInit) => {
       calls.push({ url, init })
-      return new Response('{}', { status })
+      return new Response(responseBody, { status })
     }) as unknown as typeof fetch
     return { calls, fake }
   }
@@ -88,8 +88,18 @@ describe('sending through Mailtrap', () => {
   test('fails when Mailtrap rejects the request, without exposing the token', async () => {
     const { fake } = capture(401)
     const error = await sendContactEmail(config, valid, fake).catch(cause => cause as Error)
-    expect((error as Error).message).toBe('Mailtrap responded with status 401')
+    expect((error as Error).message).toBe('Mailtrap responded with status 401: {}')
     expect((error as Error).message).not.toContain('secret-token')
+  })
+
+  test('includes the reason Mailtrap gives, trimmed, so a refusal can be diagnosed from the log', async () => {
+    const { fake } = capture(403, '{"success":false,\n "errors":["Sender domain is not verified"]}')
+    const error = await sendContactEmail(config, valid, fake).catch(cause => cause as Error)
+    expect((error as Error).message).toBe('Mailtrap responded with status 403: {"success":false, "errors":["Sender domain is not verified"]}')
+
+    const { fake: long } = capture(500, 'x'.repeat(5000))
+    const longError = await sendContactEmail(config, valid, long).catch(cause => cause as Error)
+    expect((longError as Error).message.length).toBeLessThan(400)
   })
 })
 

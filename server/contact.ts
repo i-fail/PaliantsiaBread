@@ -74,7 +74,12 @@ export async function sendContactEmail(config: MailConfig, message: ContactMessa
     }),
     signal: AbortSignal.timeout(10_000),
   })
-  if (!response.ok) throw new Error(`Mailtrap responded with status ${response.status}`)
+  if (!response.ok) {
+    // Mailtrap explains refusals in the body (for example an unverified sender domain). It echoes no
+    // secrets, so it is safe to put in the server log; the visitor never sees it.
+    const detail = (await response.text().catch(() => '')).replace(/\s+/g, ' ').trim().slice(0, 300)
+    throw new Error(`Mailtrap responded with status ${response.status}${detail ? `: ${detail}` : ''}`)
+  }
 }
 
 interface ContactHandlerOptions {
