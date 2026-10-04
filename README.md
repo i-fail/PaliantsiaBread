@@ -45,7 +45,7 @@ bun run db:check
 
 ## Admin editor
 
-Open `/admin` and sign in with `ADMIN_PASSWORD` before accessing either tab. The **Front page** tab edits Title, Subtitle, and Story as HTML and saves all three together. The **Products page** tab manages products (see below). Use **Sign out** to end the session.
+Open `/admin` and sign in with `ADMIN_PASSWORD` before accessing either tab. Each tab has its own address, `/admin/front` and `/admin/products`, so you can bookmark them and use the browser's back button; `/admin` and unknown `/admin/...` addresses go to `/admin/front`. The **Front page** tab edits Title, Subtitle, and Story as HTML and saves all three together. The **Products page** tab manages products (see below). Use **Sign out** to end the session.
 
 Sessions use an HttpOnly, SameSite=Strict cookie and last eight hours. They are held in API memory, so restarting the API signs everyone out. An expired session prompts for login again and preserves the current draft. Ten failed login attempts temporarily block login from that address for five minutes. Set `NODE_ENV=production` when deploying over HTTPS so the session cookie also has the Secure flag. The public content read endpoint remains available to the homepage; all content writes require a valid session.
 

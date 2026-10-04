@@ -1,11 +1,16 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { contentFields, maxHtmlLength, type FrontPageContent } from '../shared/content'
 import { ApiError, requestContent } from './content-api'
 import AdminProducts from './AdminProducts.vue'
 
-const activeTab = ref<'front' | 'products'>('front')
+type Tab = 'front' | 'products'
+const route = useRoute()
+const router = useRouter()
+// The tab lives in the URL (/admin/front, /admin/products) so it can be bookmarked and the back button works.
+const activeTab = computed<Tab>(() => route.params.tab === 'products' ? 'products' : 'front')
+const selectTab = (tab: Tab) => router.push(`/admin/${tab}`)
 const form = reactive<FrontPageContent>({ title: '', subtitle: '', story: '' })
 const loaded = ref(false)
 const loading = ref(true)
@@ -27,7 +32,6 @@ watch(activeTab, tab => { if (tab === 'products') visitedProducts.value = true }
 function sessionExpired() {
   authenticated.value = false
   visitedProducts.value = false
-  activeTab.value = 'front'
   loginError.value = 'Your session expired. Sign in again to continue.'
 }
 const labels = { title: 'Title', subtitle: 'Subtitle', story: 'Story' }
@@ -76,7 +80,6 @@ async function signOut() {
     if (!response.ok) throw new Error('Unable to sign out. Please try again.')
     authenticated.value = false
     loaded.value = false
-    activeTab.value = 'front'
     visitedProducts.value = false
     Object.assign(form, { title: '', subtitle: '', story: '' })
     saved.value = ''
@@ -127,11 +130,12 @@ async function save() {
   }
 }
 
-function moveTab(event: KeyboardEvent) {
+async function moveTab(event: KeyboardEvent) {
   if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
   event.preventDefault()
-  activeTab.value = event.key === 'Home' ? 'front' : event.key === 'End' ? 'products' : activeTab.value === 'front' ? 'products' : 'front'
-  document.getElementById(`${activeTab.value}-tab`)?.focus()
+  const tab: Tab = event.key === 'Home' ? 'front' : event.key === 'End' ? 'products' : activeTab.value === 'front' ? 'products' : 'front'
+  await selectTab(tab)
+  document.getElementById(`${tab}-tab`)?.focus()
 }
 
 onMounted(checkSession)
@@ -163,8 +167,8 @@ onMounted(checkSession)
       <template v-else>
       <p v-if="error" class="error-message" role="alert">{{ error }}</p>
       <div class="admin-tabs" role="tablist" aria-label="Page editor" @keydown="moveTab">
-        <button id="front-tab" type="button" role="tab" :aria-selected="activeTab === 'front'" aria-controls="front-panel" :tabindex="activeTab === 'front' ? 0 : -1" @click="activeTab = 'front'">Front page</button>
-        <button id="products-tab" type="button" role="tab" :aria-selected="activeTab === 'products'" aria-controls="products-panel" :tabindex="activeTab === 'products' ? 0 : -1" @click="activeTab = 'products'">Products page</button>
+        <button id="front-tab" type="button" role="tab" :aria-selected="activeTab === 'front'" aria-controls="front-panel" :tabindex="activeTab === 'front' ? 0 : -1" @click="selectTab('front')">Front page</button>
+        <button id="products-tab" type="button" role="tab" :aria-selected="activeTab === 'products'" aria-controls="products-panel" :tabindex="activeTab === 'products' ? 0 : -1" @click="selectTab('products')">Products page</button>
       </div>
 
       <section v-show="activeTab === 'front'" id="front-panel" role="tabpanel" aria-labelledby="front-tab" tabindex="0">
@@ -189,7 +193,7 @@ onMounted(checkSession)
       </section>
 
       <section v-show="activeTab === 'products'" id="products-panel" role="tabpanel" aria-labelledby="products-tab" tabindex="0">
-        <AdminProducts v-if="visitedProducts" @unauthorized="sessionExpired" />
+        <AdminProducts v-if="visitedProducts || activeTab === 'products'" @unauthorized="sessionExpired" />
       </section>
       </template>
     </main>
