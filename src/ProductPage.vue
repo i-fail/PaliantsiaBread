@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
-import type { Product } from '../shared/products'
+import { formatPrice, type Product } from '../shared/products'
 import { ApiError } from './content-api'
 import { getPublicProduct } from './products-api'
 
@@ -75,6 +75,7 @@ watch(() => route.params.slug, load, { immediate: true })
         <div class="product-info">
           <RouterLink class="back-link" to="/buy">← All bread</RouterLink>
           <h1>{{ product.title }}</h1>
+          <p v-if="product.priceCents !== null" class="buy-price">{{ formatPrice(product.priceCents) }}</p>
           <p class="buy-sku">SKU {{ product.sku }}</p>
           <p v-if="product.description" class="buy-description">{{ product.description }}</p>
         </div>

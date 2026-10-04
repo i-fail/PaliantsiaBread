@@ -1,16 +1,30 @@
 import { describe, expect, test } from 'bun:test'
 import sharp from 'sharp'
-import { productLimits } from '../shared/products'
+import { formatPrice, maxPriceCents, parsePrice, priceToInput, productLimits } from '../shared/products'
 import { ContentValidationError } from './content'
 import { processPhoto } from './photos'
 import { cleanProductInput, cleanProductOrder } from './products'
 
-const valid = { sku: 'RYE-01', title: 'Rye loaf', description: 'Dark rye.', enabled: true }
+const valid = { sku: 'RYE-01', title: 'Rye loaf', description: 'Dark rye.', enabled: true, priceCents: 1250 }
 
 describe('product validation', () => {
   test('accepts and trims valid input', () => {
     expect(cleanProductInput({ ...valid, sku: ' RYE-01 ', title: ' Rye loaf ' })).toEqual(valid)
     expect(cleanProductInput({ ...valid, description: '' }).description).toBe('')
+  })
+
+  test('accepts a missing price only as an explicit null', () => {
+    expect(cleanProductInput({ ...valid, priceCents: null }).priceCents).toBeNull()
+    const { priceCents: _omitted, ...withoutPrice } = valid
+    expect(() => cleanProductInput(withoutPrice)).toThrow(ContentValidationError)
+  })
+
+  test('rejects prices that are not whole cents in range', () => {
+    for (const priceCents of [0, -5, 12.5, '12.50', NaN, Infinity, maxPriceCents + 1, undefined, true]) {
+      expect(() => cleanProductInput({ ...valid, priceCents })).toThrow(ContentValidationError)
+    }
+    expect(cleanProductInput({ ...valid, priceCents: 1 }).priceCents).toBe(1)
+    expect(cleanProductInput({ ...valid, priceCents: maxPriceCents }).priceCents).toBe(maxPriceCents)
   })
 
   test('keeps markup as plain text instead of interpreting it', () => {
@@ -27,6 +41,30 @@ describe('product validation', () => {
       { ...valid, description: 5 }, { ...valid, enabled: 'yes' }, { sku: 'A', title: 'B', description: '' },
     ]
     for (const input of bad) expect(() => cleanProductInput(input)).toThrow(ContentValidationError)
+  })
+})
+
+describe('price helpers', () => {
+  test('reads typed prices as whole cents', () => {
+    expect(parsePrice('12')).toBe(1200)
+    expect(parsePrice('12.5')).toBe(1250)
+    expect(parsePrice('12.50')).toBe(1250)
+    expect(parsePrice(' 0.99 ')).toBe(99)
+    expect(parsePrice('19.99')).toBe(1999)
+    expect(parsePrice('100000')).toBe(maxPriceCents)
+  })
+
+  test('rejects anything that is not a positive amount', () => {
+    for (const text of ['', ' ', '0', '0.00', '-1', '1.234', '1,50', '$5', 'abc', '1e3', '.5', '5.', '100000.01', '99999999']) {
+      expect(parsePrice(text)).toBeNull()
+    }
+  })
+
+  test('formats and round-trips prices', () => {
+    expect(formatPrice(1250)).toBe('$12.50')
+    expect(formatPrice(99)).toBe('$0.99')
+    expect(priceToInput(1250)).toBe('12.50')
+    expect(parsePrice(priceToInput(1999))).toBe(1999)
   })
 })
 

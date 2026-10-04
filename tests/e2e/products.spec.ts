@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 
 interface Photo { id: number; url: string; width: number; height: number }
-interface Product { id: number; slug: string; sku: string; title: string; description: string; enabled: boolean; mainPhotoId: number | null; photos: Photo[] }
+interface Product { id: number; slug: string; sku: string; title: string; description: string; enabled: boolean; priceCents: number | null; mainPhotoId: number | null; photos: Photo[] }
 
 // 1x1 PNG, served for every photo URL.
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64')
@@ -59,6 +59,7 @@ test('admin creates a product, uploads photos, changes the main photo, and remov
   await page.locator('#products-panel').getByLabel('SKU').fill('RYE-01')
   await page.locator('#products-panel').getByLabel('Title').fill('Rye loaf')
   await page.locator('#products-panel').getByLabel('Description').fill('Dark rye.')
+  await page.locator('#products-panel').locator('#product-price').fill('12.50')
   await page.getByRole('button', { name: 'Create product' }).click()
   await expect(page.getByRole('status').filter({ hasText: 'Product saved.' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Edit product' })).toBeVisible()
@@ -80,7 +81,7 @@ test('admin creates a product, uploads photos, changes the main photo, and remov
 })
 
 test('admin edits a product and disables and enables it from the list', async ({ page }) => {
-  const products = [{ id: 1, slug: 'sourdough', sku: 'SOUR-1', title: 'Sourdough', description: 'Tangy.', enabled: true, mainPhotoId: null, photos: [] }]
+  const products = [{ id: 1, slug: 'sourdough', sku: 'SOUR-1', title: 'Sourdough', description: 'Tangy.', enabled: true, priceCents: 800, mainPhotoId: null, photos: [] }]
   await mockApi(page, products)
   await page.goto('/admin')
   await page.getByRole('tab', { name: 'Products page' }).click()
@@ -110,13 +111,14 @@ test('product errors are shown and keep the draft', async ({ page }) => {
   await page.getByRole('button', { name: 'Add product' }).click()
   await page.locator('#products-panel').getByLabel('SKU').fill('DUP')
   await page.locator('#products-panel').getByLabel('Title').fill('Duplicate')
+  await page.locator('#products-panel').locator('#product-price').fill('3')
   await page.getByRole('button', { name: 'Create product' }).click()
   await expect(page.getByRole('alert')).toHaveText('Another product already uses this SKU.')
   await expect(page.locator('#products-panel').getByLabel('Title')).toHaveValue('Duplicate')
 })
 
 const rye = {
-  id: 1, slug: 'rye-loaf', sku: 'RYE-01', title: 'Rye loaf', description: 'Dark rye.', enabled: true, mainPhotoId: 12,
+  id: 1, slug: 'rye-loaf', sku: 'RYE-01', title: 'Rye loaf', description: 'Dark rye.', enabled: true, priceCents: 1250, mainPhotoId: 12,
   photos: [11, 12].map(id => ({ id, url: `/api/product-photos/${id}`, width: 800, height: 400 })),
 }
 
@@ -126,6 +128,7 @@ test('buy page lists products with their main photo and links to each product pa
   await page.goto('/buy')
   await expect(page.getByRole('heading', { name: 'Rye loaf' })).toBeVisible()
   await expect(page.getByText('SKU RYE-01')).toBeVisible()
+  await expect(page.locator('.buy-card .buy-price')).toHaveText('$12.50')
   await expect(page.locator('.buy-photo')).toHaveAttribute('src', '/api/product-photos/12')
   await expect(page.getByRole('link', { name: 'Rye loaf' })).toHaveAttribute('href', '/buy/rye-loaf')
   await page.getByRole('link', { name: 'Rye loaf' }).click()
@@ -138,6 +141,7 @@ test('product page shows the product, its photos, and a way back', async ({ page
   await page.goto('/buy/rye-loaf')
   await expect(page.getByRole('heading', { level: 1, name: 'Rye loaf' })).toBeVisible()
   await expect(page.getByText('Dark rye.')).toBeVisible()
+  await expect(page.locator('.product-info .buy-price')).toHaveText('$12.50')
   await expect(page.getByText('SKU RYE-01')).toBeVisible()
   const image = page.getByRole('img', { name: 'Rye loaf', exact: true })
   await expect(image).toHaveAttribute('src', '/api/product-photos/12')
@@ -173,7 +177,7 @@ test('buy page explains when no products are available', async ({ page }) => {
   await expect(page.getByText('No bread is available right now')).toBeVisible()
 })
 
-const sample = (id: number, title: string): Product => ({ id, slug: title.toLowerCase(), sku: `SKU-${id}`, title, description: '', enabled: true, mainPhotoId: null, photos: [] })
+const sample = (id: number, title: string): Product => ({ id, slug: title.toLowerCase(), sku: `SKU-${id}`, title, description: '', enabled: true, priceCents: 500, mainPhotoId: null, photos: [] })
 const titles = (page: Page) => page.locator('.product-row .product-summary strong').allTextContents()
 
 test('admin reorders products with the up and down buttons', async ({ page }) => {
@@ -227,6 +231,7 @@ test('a new product needs a unique SKU and nothing is sent otherwise', async ({ 
   const panel = page.locator('#products-panel')
   await panel.getByRole('button', { name: 'Add product' }).click()
   await panel.getByLabel('Title').fill('Another loaf')
+  await panel.locator('#product-price').fill('4.25')
 
   // Creating is not possible until the SKU has at least one letter or number.
   const create = panel.getByRole('button', { name: 'Create product' })
@@ -246,4 +251,62 @@ test('a new product needs a unique SKU and nothing is sent otherwise', async ({ 
   await panel.getByRole('button', { name: 'Create product' }).click()
   await expect(panel.getByRole('status').filter({ hasText: 'Product saved.' })).toBeVisible()
   expect(created).toBe(1)
+})
+
+test('the price is required, shown in cents-accurate form, and saved as whole cents', async ({ page }) => {
+  const products: Product[] = []
+  await mockApi(page, products)
+  await page.goto('/admin')
+  await page.getByRole('tab', { name: 'Products page' }).click()
+  const panel = page.locator('#products-panel')
+  await panel.getByRole('button', { name: 'Add product' }).click()
+  await panel.getByLabel('SKU').fill('PRICE-1')
+  await panel.getByLabel('Title').fill('Priced loaf')
+
+  const create = panel.getByRole('button', { name: 'Create product' })
+  for (const bad of ['', '0', '0.00', '-3', 'abc', '1.234', '1,50', '$5']) {
+    await panel.locator('#product-price').fill(bad)
+    await expect(create).toBeDisabled()
+  }
+  await panel.locator('#product-price').fill('19.9')
+  await expect(create).toBeEnabled()
+  await create.click()
+  await expect(panel.getByRole('status').filter({ hasText: 'Product saved.' })).toBeVisible()
+  expect(products[0]!.priceCents).toBe(1990)
+  await expect(panel.locator('#product-price')).toHaveValue('19.90')
+  await expect(page.getByRole('list', { name: 'Products' })).toContainText('$19.90')
+
+  await panel.locator('#product-price').fill('21')
+  await panel.getByRole('button', { name: 'Save product' }).click()
+  await expect(page.getByRole('list', { name: 'Products' })).toContainText('$21.00')
+  expect(products[0]!.priceCents).toBe(2100)
+})
+
+test('products without a price can still be enabled or disabled, but need a price to be saved', async ({ page }) => {
+  const products = [{ ...sample(1, 'Legacy'), priceCents: null }]
+  await mockApi(page, products)
+  await page.goto('/admin')
+  await page.getByRole('tab', { name: 'Products page' }).click()
+  await expect(page.getByRole('list', { name: 'Products' })).toContainText('No price')
+
+  await page.getByRole('button', { name: 'Disable Legacy' }).click()
+  await expect(page.getByRole('button', { name: 'Enable Legacy' })).toBeVisible()
+  expect(products[0]!.enabled).toBe(false)
+  expect(products[0]!.priceCents).toBeNull()
+
+  const panel = page.locator('#products-panel')
+  await page.getByRole('button', { name: 'Edit Legacy' }).click()
+  await panel.getByLabel('Title').fill('Legacy loaf')
+  await expect(panel.getByRole('button', { name: 'Save product' })).toBeDisabled()
+  await panel.locator('#product-price').fill('7')
+  await panel.getByRole('button', { name: 'Save product' }).click()
+  await expect(page.getByRole('list', { name: 'Products' })).toContainText('$7.00')
+  expect(products[0]!.priceCents).toBe(700)
+})
+
+test('buy page leaves out the price for a product that has none', async ({ page }) => {
+  await page.route('**/api/products', route => route.fulfill({ json: [{ ...rye, priceCents: null, photos: [] }] }))
+  await page.goto('/buy')
+  await expect(page.getByRole('heading', { name: 'Rye loaf' })).toBeVisible()
+  await expect(page.locator('.buy-price')).toHaveCount(0)
 })

@@ -1,4 +1,4 @@
-import { productLimits, skuPattern, type Product, type ProductInput } from '../shared/products'
+import { maxPriceCents, productLimits, skuPattern, type Product, type ProductInput } from '../shared/products'
 import { ContentValidationError } from './content'
 import { getDatabase } from './db'
 import type { ProcessedPhoto } from './photos'
@@ -30,7 +30,12 @@ export function cleanProductInput(value: unknown): ProductInput {
     throw new ContentValidationError(`Description must be at most ${productLimits.description} characters.`)
   }
   if (typeof source.enabled !== 'boolean') throw new ContentValidationError('enabled must be true or false.')
-  return { sku, title, description, enabled: source.enabled }
+  // The key must be present so a client that doesn't know about prices can't silently clear one.
+  const price = source.priceCents
+  if (price !== null && (typeof price !== 'number' || !Number.isInteger(price) || price < 1 || price > maxPriceCents)) {
+    throw new ContentValidationError('Price must be above zero and a whole number of cents, or null.')
+  }
+  return { sku, title, description, enabled: source.enabled, priceCents: price as number | null }
 }
 
 export function cleanProductOrder(value: unknown): number[] {
@@ -42,7 +47,7 @@ export function cleanProductOrder(value: unknown): number[] {
   return ids
 }
 
-interface ProductRow { id: number; slug: string; sku: string; title: string; description: string; enabled: boolean }
+interface ProductRow { id: number; slug: string; sku: string; title: string; description: string; enabled: boolean; price_cents: number | null }
 interface PhotoRow { id: number; product_id: number; is_main: boolean; width: number; height: number }
 
 export function photoUrl(id: number) {
@@ -58,6 +63,7 @@ function toProduct(row: ProductRow, photos: PhotoRow[]): Product {
     title: row.title,
     description: row.description,
     enabled: row.enabled,
+    priceCents: row.price_cents,
     mainPhotoId: main?.id ?? null,
     photos: photos.map(photo => ({ id: photo.id, url: photoUrl(photo.id), width: photo.width, height: photo.height })),
   }
@@ -75,14 +81,14 @@ async function loadProducts(rows: ProductRow[]): Promise<Product[]> {
 export async function listProducts({ enabledOnly }: { enabledOnly: boolean }): Promise<Product[]> {
   const db = getDatabase()
   const rows: ProductRow[] = enabledOnly
-    ? await db`SELECT id, slug, sku, title, description, enabled FROM products WHERE enabled ORDER BY position, id`
-    : await db`SELECT id, slug, sku, title, description, enabled FROM products ORDER BY position, id`
+    ? await db`SELECT id, slug, sku, title, description, enabled, price_cents FROM products WHERE enabled ORDER BY position, id`
+    : await db`SELECT id, slug, sku, title, description, enabled, price_cents FROM products ORDER BY position, id`
   return loadProducts(rows)
 }
 
 export async function getProduct(id: number): Promise<Product | null> {
   const db = getDatabase()
-  const rows: ProductRow[] = await db`SELECT id, slug, sku, title, description, enabled FROM products WHERE id = ${id}`
+  const rows: ProductRow[] = await db`SELECT id, slug, sku, title, description, enabled, price_cents FROM products WHERE id = ${id}`
   return (await loadProducts(rows))[0] ?? null
 }
 
@@ -97,7 +103,7 @@ function rethrowConflict(error: unknown): never {
 
 export async function getProductBySlug(slug: string, { enabledOnly }: { enabledOnly: boolean }): Promise<Product | null> {
   const db = getDatabase()
-  const rows: ProductRow[] = await db`SELECT id, slug, sku, title, description, enabled FROM products WHERE slug = ${slug}`
+  const rows: ProductRow[] = await db`SELECT id, slug, sku, title, description, enabled, price_cents FROM products WHERE slug = ${slug}`
   const row = rows[0]
   return row && (row.enabled || !enabledOnly) ? (await loadProducts([row]))[0] ?? null : null
 }
@@ -112,10 +118,10 @@ export async function createProduct(input: ProductInput): Promise<Product> {
     const slug = uniqueSlug(base, taken.map(row => row.slug))
     try {
       const [row]: ProductRow[] = await db`
-        INSERT INTO products (slug, sku, title, description, enabled, position)
-        VALUES (${slug}, ${input.sku}, ${input.title}, ${input.description}, ${input.enabled},
+        INSERT INTO products (slug, sku, title, description, enabled, price_cents, position)
+        VALUES (${slug}, ${input.sku}, ${input.title}, ${input.description}, ${input.enabled}, ${input.priceCents},
           (SELECT COALESCE(MAX(position), 0) + 1 FROM products))
-        RETURNING id, slug, sku, title, description, enabled
+        RETURNING id, slug, sku, title, description, enabled, price_cents
       `
       return toProduct(row!, [])
     } catch (error) {
@@ -132,9 +138,9 @@ export async function updateProduct(id: number, input: ProductInput): Promise<Pr
     const rows: ProductRow[] = await db`
       UPDATE products
       SET sku = ${input.sku}, title = ${input.title}, description = ${input.description},
-          enabled = ${input.enabled}, updated_at = NOW()
+          enabled = ${input.enabled}, price_cents = ${input.priceCents}, updated_at = NOW()
       WHERE id = ${id}
-      RETURNING id, slug, sku, title, description, enabled
+      RETURNING id, slug, sku, title, description, enabled, price_cents
     `
     return (await loadProducts(rows))[0] ?? null
   } catch (error) {

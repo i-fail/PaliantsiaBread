@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import { productLimits, type Product, type ProductInput } from '../shared/products'
+import { currency, formatPrice, parsePrice, priceToInput, productLimits, type Product } from '../shared/products'
 import { ApiError } from './content-api'
 import * as api from './products-api'
 
@@ -13,7 +13,8 @@ const loaded = ref(false)
 const error = ref('')
 const message = ref('')
 const selected = ref<number | 'new' | null>(null)
-const form = reactive<ProductInput>({ sku: '', title: '', description: '', enabled: true })
+// The price is kept as typed ("12.50") and converted to whole cents when saving.
+const form = reactive({ sku: '', title: '', description: '', enabled: true, price: '' })
 const saved = ref('')
 const saving = ref(false)
 const busy = ref(false)
@@ -24,6 +25,8 @@ const overId = ref<number | null>(null)
 
 // A SKU must contain at least one letter or number.
 const skuValid = computed(() => /[A-Za-z0-9]/.test(form.sku))
+const priceCents = computed(() => parsePrice(form.price))
+const priceInvalid = computed(() => form.price.trim() !== '' && priceCents.value === null)
 const dirty = computed(() => selected.value !== null && JSON.stringify(form) !== saved.value)
 const current = computed(() => typeof selected.value === 'number' ? products.value.find(p => p.id === selected.value) ?? null : null)
 
@@ -43,8 +46,8 @@ function replace(product: Product) {
 
 function fill(product: Product | null) {
   Object.assign(form, product
-    ? { sku: product.sku, title: product.title, description: product.description, enabled: product.enabled }
-    : { sku: '', title: '', description: '', enabled: true })
+    ? { sku: product.sku, title: product.title, description: product.description, enabled: product.enabled, price: product.priceCents === null ? '' : priceToInput(product.priceCents) }
+    : { sku: '', title: '', description: '', enabled: true, price: '' })
   saved.value = JSON.stringify(form)
 }
 
@@ -90,7 +93,8 @@ async function save() {
   }
   saving.value = true
   try {
-    const input = { ...form }
+    const { price: _typed, ...fields } = form
+    const input = { ...fields, priceCents: priceCents.value }
     const product = current.value ? await api.updateProduct(current.value.id, input) : await api.createProduct(input)
     replace(product)
     selected.value = product.id
@@ -108,8 +112,8 @@ async function toggle(product: Product) {
   error.value = ''
   message.value = ''
   try {
-    const { sku, title, description } = product
-    replace(await api.updateProduct(product.id, { sku, title, description, enabled: !product.enabled }))
+    const { sku, title, description, priceCents } = product
+    replace(await api.updateProduct(product.id, { sku, title, description, enabled: !product.enabled, priceCents }))
     if (selected.value === product.id) {
       // Reflect the new state in the open form without touching other unsaved edits.
       form.enabled = !product.enabled
@@ -274,7 +278,7 @@ onMounted(load)
         </div>
         <div class="product-summary">
           <strong>{{ product.title }}</strong>
-          <span class="admin-help">SKU {{ product.sku }}</span>
+          <span class="admin-help">SKU {{ product.sku }} · {{ product.priceCents === null ? 'No price' : formatPrice(product.priceCents) }}</span>
         </div>
         <div class="product-actions">
           <button class="sign-out-button move-button" type="button" :aria-label="`Move ${product.title} up`" :disabled="saving || busy || index === 0" @click="moveTo(product.id, index - 1)">↑</button>
@@ -303,13 +307,18 @@ onMounted(load)
             <input id="product-title" v-model="form.title" required :maxlength="productLimits.title" @input="message = ''" />
           </div>
           <div class="editor-field">
+            <label for="product-price">Price <span>{{ currency }}</span></label>
+            <input id="product-price" v-model="form.price" required inputmode="decimal" autocomplete="off" placeholder="0.00" :aria-invalid="priceInvalid" aria-describedby="product-price-help" @input="message = ''" />
+            <p id="product-price-help" class="admin-help" :class="{ 'error-message': priceInvalid }">Enter an amount above zero, such as 12.50.</p>
+          </div>
+          <div class="editor-field">
             <label for="product-description">Description</label>
             <textarea id="product-description" v-model="form.description" rows="6" :maxlength="productLimits.description" @input="message = ''"></textarea>
           </div>
           <label class="checkbox-field"><input v-model="form.enabled" type="checkbox" @change="message = ''" /> Enabled — show on the buy page</label>
         </fieldset>
         <div class="editor-actions">
-          <button class="action-button" type="submit" :disabled="saving || !dirty || !skuValid">{{ saving ? 'Saving…' : current ? 'Save product' : 'Create product' }}</button>
+          <button class="action-button" type="submit" :disabled="saving || !dirty || !skuValid || priceCents === null">{{ saving ? 'Saving…' : current ? 'Save product' : 'Create product' }}</button>
           <button class="sign-out-button" type="button" :disabled="saving" @click="close">{{ dirty ? 'Discard and close' : 'Close' }}</button>
           <span v-if="dirty && !saving" class="admin-help">Unsaved changes</span>
           <p v-if="message" class="save-message" role="status">{{ message }}</p>

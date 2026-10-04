@@ -41,7 +41,7 @@ bun run db:migrate
 bun run db:check
 ```
 
-`db:migrate` applies every file in `server/migrations/` in order. `001` creates `front_page_content`, a single-row table containing `title`, `subtitle`, `story`, and `updated_at`, and seeds the original HTML only if the row does not exist. `002` creates `products` and `product_photos`, `003` adds the display order, and `004` adds product slugs (existing products get one from their title). Migrations are idempotent, so rerunning preserves existing data. `server/db.ts` exposes a lazy Bun SQL connection. Keep database credentials in server environment variables, never `VITE_` variables. Docker data persists in a volume; `docker compose down` preserves it.
+`db:migrate` applies every file in `server/migrations/` in order. `001` creates `front_page_content`, a single-row table containing `title`, `subtitle`, `story`, and `updated_at`, and seeds the original HTML only if the row does not exist. `002` creates `products` and `product_photos`, `003` adds the display order, and `004` adds product slugs (existing products get one from their title), and `005` adds the price. Migrations are idempotent, so rerunning preserves existing data. `server/db.ts` exposes a lazy Bun SQL connection. Keep database credentials in server environment variables, never `VITE_` variables. Docker data persists in a volume; `docker compose down` preserves it.
 
 ## Admin editor
 
@@ -58,6 +58,7 @@ The **Products page** tab in `/admin` lists products and lets you add and edit t
 - **Photos** are uploaded one file at a time (JPEG, PNG, WebP, GIF, or AVIF, up to 10 MB, up to 10 per product). The server applies EXIF rotation, resizes to at most 800px wide (smaller images are not enlarged), and stores the result as WebP in PostgreSQL. Original files and metadata are discarded. Create the product first, then add photos.
 - The **main photo** is the one marked as main; until one is marked, it is the first photo uploaded. Removing the main photo falls back to the first remaining one.
 - **Order:** drag products in the list or use the up and down buttons. The order is saved immediately and is also the order on `/buy`. New products are added at the end. Existing products started in alphabetical order when migration `003` ran.
+- **Price:** entered in the editor as an amount such as `12.50` (required, above zero, up to 100,000.00) and stored as whole cents. It is shown on `/buy` and on each product page; a product with no price shows none. Products created before prices existed have no price until you edit them, and can still be enabled or disabled meanwhile. The currency is the `currency` constant in `shared/products.ts` (`USD`).
 - **Slug and page:** each product has its own page at `/buy/<slug>`, listing all its photos. The slug is generated from the title when the product is created (Ukrainian is transliterated to Latin, e.g. `Паляниця` becomes `palianytsia`; duplicates get `-2`, `-3`). It does not change when the title is edited, so shared links keep working. The editor shows the product's page link.
 - **Disabled** products are never deleted. They are hidden from `/buy`, their own page (which shows "couldn’t find that bread"), `GET /api/products`, `GET /api/products/:slug`, and the photo endpoint for visitors, but stay visible in the admin and can be enabled again.
 
