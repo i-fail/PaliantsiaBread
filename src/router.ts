@@ -1,12 +1,11 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import HomePage from './HomePage.vue'
-import BuyPage from './BuyPage.vue'
 
+// Each route is loaded on demand, so every page ships as its own chunk.
 export const router = createRouter({
   history: createWebHistory(),
   routes: [
-    { path: '/', component: HomePage },
-    { path: '/buy', component: BuyPage },
+    { path: '/', component: () => import('./HomePage.vue') },
+    { path: '/buy', component: () => import('./BuyPage.vue') },
     { path: '/buy/:slug', component: () => import('./ProductPage.vue') },
     { path: '/admin', component: () => import('./AdminPage.vue') },
   ],
