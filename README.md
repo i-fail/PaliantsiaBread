@@ -75,7 +75,7 @@ bun run preview
 
 The browser tests use mocked API responses to check editing, tab navigation, HTML rendering, and error handling; they do not require or modify a database. If Chromium is not installed, run `bunx playwright install chromium` first.
 
-The production frontend is generated in `dist/`. `preview` serves that build locally; run the API separately with `bun run start:api`. Configure the production frontend host to serve `index.html` for page routes such as `/buy`, `/buy/<slug>`, and `/admin`, forward `/api` to the Bun server, and use HTTPS for admin editing.
+The production frontend is generated in `dist/`, or in the folder named by `BUILD_OUT_DIR` if set. On a server, set `BUILD_OUT_DIR=/var/www/palianytsia/dist` in `.env` (and make that folder writable by the deploying user, for example `sudo chown <user> /var/www/palianytsia`) so `bun run build` publishes directly to the folder nginx serves. The folder is emptied on every build, and the build refuses a folder that is or contains the project. `preview` serves that build locally; run the API separately with `bun run start:api`. Configure the production frontend host to serve `index.html` for page routes such as `/buy`, `/buy/<slug>`, and `/admin`, forward `/api` to the Bun server, and use HTTPS for admin editing.
 
 ## Images and page content
 
