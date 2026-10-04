@@ -87,6 +87,17 @@ The production frontend is generated in `dist/`, or in the folder named by `BUIL
 
 The page uses Google Fonts for body text, with system fallbacks when offline. The headline uses the local Georgia serif font.
 
-## Production nginx
+## Production nginx and HTTPS
 
-`nginx/prod/palianytsia.conf` is a ready-to-install nginx site that serves the built frontend from `/home/pal/pal_website/dist` and forwards `/api/` to the API on `127.0.0.1:38417`, over plain HTTP on port 80. The installation steps are at the top of the file. It does not use HTTPS yet, so run the API without `NODE_ENV=production` until HTTPS is set up (the Secure session cookie is not stored over HTTP, which breaks admin login).
+`nginx/prod/palianytsia.conf` is the production nginx site for palianytsiabread.com and ukrainianbread.co (with and without www). It redirects HTTP to HTTPS, serves the built frontend from `/home/pal/pal_website/dist`, and forwards `/api/` to the API on `127.0.0.1:38417`. Run the API with `NODE_ENV=production` so the admin cookie is Secure.
+
+nginx will not load this file until the Let's Encrypt certificate exists, so get the certificate first (while the earlier HTTP-only config is installed), then install this file:
+
+```sh
+sudo mkdir -p /var/www/certbot
+sudo certbot certonly --nginx -d palianytsiabread.com -d www.palianytsiabread.com -d ukrainianbread.co -d www.ukrainianbread.co
+sudo ln -sf /home/pal/pal_website/nginx/prod/palianytsia.conf /etc/nginx/sites-enabled/palianytsia
+sudo nginx -t && sudo systemctl reload nginx
+sudo certbot reconfigure --cert-name palianytsiabread.com --webroot -w /var/www/certbot
+sudo certbot renew --dry-run
+```
