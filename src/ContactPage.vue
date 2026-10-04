@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import CartIndicator from './CartIndicator.vue'
 import { RouterLink } from 'vue-router'
 
 const year = new Date().getFullYear()
@@ -22,6 +23,7 @@ const mapsLink = `https://www.google.com/maps/search/?api=1&query=${encodeURICom
       <nav class="header-nav" aria-label="Main">
         <RouterLink class="header-link" to="/">Our story</RouterLink>
         <RouterLink class="header-link" to="/buy">Buy bread</RouterLink>
+        <CartIndicator />
       </nav>
     </header>
 

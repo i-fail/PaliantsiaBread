@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import CartIndicator from './CartIndicator.vue'
 import { RouterLink } from 'vue-router'
 import { onMounted, ref } from 'vue'
 import type { FrontPageContent } from '../shared/content'
@@ -35,6 +36,7 @@ onMounted(loadContent)
       <nav class="header-nav" aria-label="Main">
         <RouterLink class="header-link" to="/buy">Buy bread</RouterLink>
         <RouterLink class="header-link" to="/contact">Contact</RouterLink>
+        <CartIndicator />
       </nav>
     </header>
 

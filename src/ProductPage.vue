@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import CartIndicator from './CartIndicator.vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { formatPrice, type Product } from '../shared/products'
 import { ApiError } from './content-api'
+import AddToCartButton from './AddToCartButton.vue'
 import { getPublicProduct } from './products-api'
 
 const route = useRoute()
@@ -51,6 +53,7 @@ watch(() => route.params.slug, load, { immediate: true })
       <nav class="header-nav" aria-label="Main">
         <RouterLink class="header-link" to="/buy">All bread</RouterLink>
         <RouterLink class="header-link" to="/contact">Contact</RouterLink>
+        <CartIndicator />
       </nav>
     </header>
 
@@ -78,7 +81,10 @@ watch(() => route.params.slug, load, { immediate: true })
         <div class="product-info">
           <RouterLink class="back-link" to="/buy">← All bread</RouterLink>
           <h1>{{ product.title }}</h1>
-          <p v-if="product.priceCents !== null" class="buy-price">{{ formatPrice(product.priceCents) }}</p>
+          <div v-if="product.priceCents !== null" class="buy-price-row">
+            <p class="buy-price">{{ formatPrice(product.priceCents) }}</p>
+            <AddToCartButton :product-id="product.id" :title="product.title" />
+          </div>
           <p v-if="product.shippingAvailable" class="buy-shipping">Shipping available</p>
           <p class="buy-sku">SKU {{ product.sku }}</p>
           <p v-if="product.description" class="buy-description">{{ product.description }}</p>

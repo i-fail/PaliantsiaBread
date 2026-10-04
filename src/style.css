@@ -155,3 +155,12 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .contact-link { color: #765035; text-decoration: underline; }
 .header-nav { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px 28px; }
 @media (max-width: 680px) { .header-link { font-size: 17px; } .header-nav { gap: 6px 18px; } }
+.header-nav { align-items: center; }
+.cart-indicator { position: relative; display: inline-flex; align-items: center; }
+.cart-indicator img { display: block; }
+.cart-count { position: absolute; top: -8px; right: -10px; min-width: 19px; height: 19px; padding: 0 5px; border-radius: 99px; background: #765035; color: #fff; font-size: 12px; font-weight: 700; line-height: 19px; text-align: center; }
+.buy-price-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 6px; }
+.buy-price-row .buy-price { margin: 0; }
+.buy-price-row .add-to-cart { padding: 9px 16px; font-size: 14px; white-space: nowrap; }
+.product-info .buy-price-row { margin-bottom: 10px; }
+.product-info .buy-price-row .add-to-cart { padding: 11px 20px; font-size: 15px; }

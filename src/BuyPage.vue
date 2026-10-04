@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import CartIndicator from './CartIndicator.vue'
 import { RouterLink } from 'vue-router'
 import { formatPrice, type Product } from '../shared/products'
+import AddToCartButton from './AddToCartButton.vue'
 import { listPublicProducts } from './products-api'
 
 const year = new Date().getFullYear()
@@ -37,6 +39,7 @@ onMounted(load)
       <nav class="header-nav" aria-label="Main">
         <RouterLink class="header-link" to="/">Our story</RouterLink>
         <RouterLink class="header-link" to="/contact">Contact</RouterLink>
+        <CartIndicator />
       </nav>
     </header>
 
@@ -53,7 +56,10 @@ onMounted(load)
             <img class="buy-photo" :src="mainPhoto(product)!.url" alt="" :width="mainPhoto(product)!.width" :height="mainPhoto(product)!.height" />
           </RouterLink>
           <h2><RouterLink :to="`/buy/${product.slug}`">{{ product.title }}</RouterLink></h2>
-          <p v-if="product.priceCents !== null" class="buy-price">{{ formatPrice(product.priceCents) }}</p>
+          <div v-if="product.priceCents !== null" class="buy-price-row">
+            <p class="buy-price">{{ formatPrice(product.priceCents) }}</p>
+            <AddToCartButton :product-id="product.id" :title="product.title" />
+          </div>
           <p v-if="product.shippingAvailable" class="buy-shipping">Shipping available</p>
           <p class="buy-sku">SKU {{ product.sku }}</p>
           <p v-if="product.description" class="buy-description">{{ product.description }}</p>
