@@ -1,5 +1,7 @@
 import { productLimits } from '../shared/products'
 import { createAdminAuth } from './auth'
+import { clientAddress } from './client-address'
+import { createContactHandler, mailConfigFromEnv } from './contact'
 import { cleanContent, ContentValidationError, readContent, saveContent } from './content'
 import { processPhoto } from './photos'
 import { maxSlugLength, slugPattern } from './slug'
@@ -9,6 +11,8 @@ import {
 } from './products'
 
 const maxJsonLength = 1024 * 1024
+
+const handleContact = createContactHandler({ config: mailConfigFromEnv(process.env) })
 
 const adminAuth = createAdminAuth({
   password: process.env.ADMIN_PASSWORD,
@@ -74,7 +78,7 @@ const server = Bun.serve({
     },
     '/api/admin/session': { GET: request => adminAuth.session(request) },
     '/api/admin/login': {
-      POST: (request, server) => adminAuth.login(request, server.requestIP(request)?.address ?? 'unknown'),
+      POST: (request, server) => adminAuth.login(request, clientAddress(request, server.requestIP(request)?.address)),
     },
     '/api/admin/logout': { POST: request => adminAuth.logout(request) },
     '/api/front-page': {
@@ -100,6 +104,20 @@ const server = Bun.serve({
             return Response.json({ error: error instanceof SyntaxError ? 'Invalid JSON.' : error.message }, { status: 400 })
           }
           return contentUnavailable(error)
+        }
+      },
+    },
+    // Public: sends the contact form to the bakery's inbox.
+    '/api/contact': {
+      POST: async (request, server) => {
+        if (!isJson(request)) return Response.json({ error: 'Send the message as JSON.' }, { status: 415 })
+        try {
+          return await handleContact(await readJson(request), clientAddress(request, server.requestIP(request)?.address))
+        } catch (error) {
+          if (error instanceof SyntaxError) return Response.json({ error: 'Invalid JSON.' }, { status: 400 })
+          if (error instanceof ContentValidationError) return Response.json({ error: error.message }, { status: 400 })
+          console.error('Contact request failed:', error instanceof Error ? error.message : 'Unknown error')
+          return Response.json({ error: 'We couldn’t send your message right now. Please try again later or call us.' }, { status: 500 })
         }
       },
     },

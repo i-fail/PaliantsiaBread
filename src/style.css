@@ -164,3 +164,14 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .buy-price-row .add-to-cart { padding: 9px 16px; font-size: 14px; white-space: nowrap; }
 .product-info .buy-price-row { margin-bottom: 10px; }
 .product-info .buy-price-row .add-to-cart { padding: 11px 20px; font-size: 15px; }
+.contact-form-section { max-width: 560px; margin-top: 48px; }
+.contact-form-section h2 { margin: 0 0 14px; font-family: Georgia, 'Times New Roman', serif; font-size: 24px; font-weight: 400; }
+.contact-form { display: grid; gap: 18px; }
+.contact-field { display: grid; gap: 8px; }
+.contact-field label { font-weight: 600; }
+.contact-field input, .contact-field textarea { width: 100%; border: 1px solid #c5b8a7; border-radius: 4px; padding: 12px; background: #fffdf8; color: #392d25; }
+.contact-field textarea { resize: vertical; line-height: 1.6; }
+.contact-form .action-button { justify-self: start; }
+.contact-form .error-message { margin: 0; }
+.contact-sent { margin: 0 0 18px; color: #365c35; }
+.contact-trap { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }

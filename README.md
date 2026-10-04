@@ -65,6 +65,16 @@ The **Products page** tab in `/admin` lists products and lets you add and edit t
 
 Public endpoints: `GET /api/products` and `GET /api/products/:slug` (enabled products only) and `GET /api/product-photos/:id`. All other product endpoints are under `/api/admin/products` and require a session.
 
+## Contact form
+
+The form on `/contact` (name, email, message) emails its contents to `CONTACT_TO_EMAIL` through [Mailtrap](https://mailtrap.io)'s sending API. The visitor's address is set as the reply-to, so replying from the inbox answers them. Configure it in `.env` (see `.env.example`):
+
+- `CONTACT_TO_EMAIL` - where messages go (`palianytsiabread@gmail.com`).
+- `MAILTRAP_API_TOKEN` and `MAILTRAP_FROM_EMAIL` - a token and a sender address on a domain you have verified under Mailtrap's Sending Domains (add the DNS records Mailtrap shows). Without a verified domain Mailtrap will not deliver to a real inbox.
+- `MAILTRAP_INBOX_ID` - optional, development only. When set, messages go to that Mailtrap testing inbox instead of the real recipient, so you can try the form without emailing anyone.
+
+If any of the first three are missing, `/api/contact` answers 503 and the form shows an error. Restart the API after changing `.env`. The form is protected by validation, a hidden field that catches bots, and rate limits (5 messages per hour per visitor, 40 per hour overall). The rate limits use the visitor address that nginx forwards in `X-Forwarded-For`, which the API trusts only on local connections.
+
 ## Build and check
 
 ```sh
