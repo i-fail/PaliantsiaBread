@@ -50,13 +50,20 @@ onMounted(loadContent)
           </div>
           <template v-else-if="content">
             <h1 id="welcome-title" v-html="content.title"></h1>
+            <img
+              class="hero-image hero-image-mobile"
+              src="/uploads/hero_1600px.webp"
+              alt="A smiling baker in an apron holding freshly baked baguettes"
+              width="1068"
+              height="1600"
+            />
             <p class="subtitle" v-html="content.subtitle"></p>
             <div class="story" v-html="content.story"></div>
           </template>
         </div>
 
         <img
-          class="hero-image"
+          class="hero-image hero-image-desktop"
           src="/uploads/hero_1600px.webp"
           alt="A smiling baker in an apron holding freshly baked baguettes"
           width="1068"
