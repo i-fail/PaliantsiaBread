@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'bun:test'
-import { initialOrderStatus, normalizePhone, orderStatuses, shippingStates, stateCodes } from '../shared/orders'
+import { initialOrderStatus, normalizePhone, orderSlugPattern, orderStatuses, shippingStates, stateCodes } from '../shared/orders'
 import type { Product } from '../shared/products'
 import { ContentValidationError } from './content'
 import {
-  buildOrder, cleanAddress, cleanOrderRequest, createOrderHandler, newOrderSlug, OrderUnavailableError, type NewOrder,
+  buildOrder, cleanAddress, cleanOrderRequest, createOrderHandler, newOrderSlug, orderFromRow, OrderUnavailableError, summaryOf, type NewOrder,
 } from './orders'
 import { createRateLimiter } from './rate-limit'
 
@@ -214,6 +214,45 @@ describe('order handler', () => {
       const response = await make(overrides).handler(request(), '1.2.3.4')
       expect(response.status).toBe(503)
       expect(JSON.stringify(await response.json())).not.toContain('db.internal')
+    }
+  })
+})
+
+describe('reading orders', () => {
+  const row = {
+    slug: 'AbCdEfGh12345678', status: 'unpaid', created_at: new Date('2026-10-04T12:30:00Z'), email: 'olena@example.com', phone: '(424) 408-0552',
+    ship_name: 'Olena K', ship_street: '1 Main St', ship_city: 'Costa Mesa', ship_state: 'CA', ship_zip: '92626',
+    items: [
+      { productId: 1, sku: 'SKU-1', title: 'Rye', unitPriceCents: 1000, quantity: 4, delivery: 'ship' as const },
+      { productId: 3, sku: 'SKU-3', title: 'Cake', unitPriceCents: 3000, quantity: 1, delivery: 'pickup' as const },
+    ],
+    subtotal_cents: 7000, shipping_cents: 4000, total_cents: 11000, shipped_units: 4, boxes: 2, currency: 'USD',
+  }
+
+  test('turns a stored row into the full order', () => {
+    expect(orderFromRow(row)).toEqual({
+      slug: 'AbCdEfGh12345678', status: 'unpaid', createdAt: '2026-10-04T12:30:00.000Z', email: 'olena@example.com', phone: '(424) 408-0552',
+      address: { name: 'Olena K', street: '1 Main St', city: 'Costa Mesa', state: 'CA', zip: '92626' },
+      items: row.items, itemCount: 5, subtotalCents: 7000, shippingCents: 4000, totalCents: 11000, shippedUnits: 4, boxes: 2, currency: 'USD',
+    })
+  })
+
+  test('has no address for a pickup order', () => {
+    const pickup = orderFromRow({ ...row, ship_name: null, ship_street: null, ship_city: null, ship_state: null, ship_zip: null, shipped_units: 0, boxes: 0, shipping_cents: 0, total_cents: 7000 })
+    expect(pickup.address).toBeNull()
+  })
+
+  test('the list shows only a summary and never the phone number or address', () => {
+    const summary = summaryOf(orderFromRow(row))
+    expect(summary).toEqual({ slug: 'AbCdEfGh12345678', status: 'unpaid', createdAt: '2026-10-04T12:30:00.000Z', email: 'olena@example.com', itemCount: 5, shippedUnits: 4, totalCents: 11000 })
+    expect(JSON.stringify(summary)).not.toContain('Main St')
+    expect(JSON.stringify(summary)).not.toContain('408-0552')
+  })
+
+  test('recognizes well-formed order references only', () => {
+    for (const good of ['AbCdEfGh12345678', '0000000000000000', 'zzzzzzzzzzzzzzzz']) expect(orderSlugPattern.test(good)).toBe(true)
+    for (const bad of ['', 'short', 'AbCdEfGh1234567', 'AbCdEfGh123456789', 'AbCdEfGh1234567-', "AbCdEfGh1234567' OR 1=1", 'AbCdEfGh12345678\n']) {
+      expect(orderSlugPattern.test(bad)).toBe(false)
     }
   })
 })

@@ -2,8 +2,8 @@ import { randomInt } from 'node:crypto'
 import { emailPattern } from '../shared/contact'
 import type { Delivery } from '../shared/delivery'
 import {
-  initialOrderStatus, normalizePhone, orderLimits, stateCodes, zipPattern,
-  type OrderItem, type OrderRequest, type PlacedOrder, type ShippingAddress,
+  initialOrderStatus, normalizePhone, orderLimits, orderSlugPattern, stateCodes, zipPattern,
+  type OrderDetails, type OrderItem, type OrderRequest, type OrderStatus, type OrderSummary, type PlacedOrder, type ShippingAddress,
 } from '../shared/orders'
 import { cartTotals, type CartTotals } from '../shared/pricing'
 import { currency, type Product } from '../shared/products'
@@ -197,4 +197,68 @@ export function createOrderHandler({
       return Response.json({ error: 'We couldn’t place your order right now. Please try again or call us.' }, { status: 503 })
     }
   }
+}
+
+interface OrderRow {
+  slug: string
+  status: string
+  created_at: Date
+  email: string
+  phone: string
+  ship_name: string | null
+  ship_street: string | null
+  ship_city: string | null
+  ship_state: string | null
+  ship_zip: string | null
+  items: OrderItem[]
+  subtotal_cents: number
+  shipping_cents: number
+  total_cents: number
+  shipped_units: number
+  boxes: number
+  currency: string
+}
+
+export function orderFromRow(row: OrderRow): OrderDetails {
+  const hasAddress = row.ship_name !== null
+  return {
+    slug: row.slug,
+    status: row.status as OrderStatus,
+    createdAt: new Date(row.created_at).toISOString(),
+    email: row.email,
+    phone: row.phone,
+    address: hasAddress
+      ? { name: row.ship_name!, street: row.ship_street!, city: row.ship_city!, state: row.ship_state!, zip: row.ship_zip! }
+      : null,
+    items: row.items,
+    itemCount: row.items.reduce((total, item) => total + item.quantity, 0),
+    subtotalCents: row.subtotal_cents,
+    shippingCents: row.shipping_cents,
+    totalCents: row.total_cents,
+    shippedUnits: row.shipped_units,
+    boxes: row.boxes,
+    currency: row.currency,
+  }
+}
+
+export function summaryOf(order: OrderDetails): OrderSummary {
+  const { slug, status, createdAt, email, itemCount, shippedUnits, totalCents } = order
+  return { slug, status, createdAt, email, itemCount, shippedUnits, totalCents }
+}
+
+// The most recent orders first. The list is capped so the admin page stays quick.
+export const maxListedOrders = 500
+
+export async function listOrders(): Promise<OrderSummary[]> {
+  const db = getDatabase()
+  const rows: OrderRow[] = await db`SELECT * FROM orders ORDER BY id DESC LIMIT ${maxListedOrders}`
+  return rows.map(row => summaryOf(orderFromRow(row)))
+}
+
+export async function getOrder(slug: string): Promise<OrderDetails | null> {
+  // Anything that is not a well-formed reference cannot exist, so there is no need to ask the database.
+  if (!orderSlugPattern.test(slug)) return null
+  const db = getDatabase()
+  const rows: OrderRow[] = await db`SELECT * FROM orders WHERE slug = ${slug}`
+  return rows[0] ? orderFromRow(rows[0]) : null
 }

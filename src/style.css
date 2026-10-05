@@ -233,3 +233,35 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .checkout-continue { display: inline-block; margin-top: 8px; }
 @media (max-width: 700px) { .checkout-fields { grid-template-columns: minmax(0, 1fr); } .checkout-field, .checkout-field-wide { grid-column: 1 / -1; } }
 .checkout-place-help { margin: 10px 0 0; }
+.orders-admin { padding-top: 18px; }
+.orders-empty { margin: 18px 0; }
+.orders-table-wrap { overflow-x: auto; margin: 6px 0 14px; }
+.orders-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.orders-table th, .orders-table td { padding: 11px 12px; text-align: left; border-bottom: 1px solid #dcd4c7; white-space: nowrap; }
+.orders-table thead th { color: #6a6055; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .4px; }
+.orders-table tbody th { font-weight: 500; }
+.orders-table .orders-number { text-align: right; }
+.orders-table .orders-email { max-width: 240px; overflow: hidden; text-overflow: ellipsis; }
+.orders-row { cursor: pointer; }
+.orders-row:hover { background: #f1eadd; }
+.orders-link { font-family: Consolas, monospace; color: #765035; text-decoration: underline; }
+.order-status { font-weight: 600; }
+.order-status.is-unpaid { color: #9a2b1d; }
+.order-status.is-paid, .order-status.is-delivered { color: #365c35; }
+.order-status.is-shipped { color: #765035; }
+.order-page { max-width: 960px; }
+.order-title { margin-bottom: 8px; overflow-wrap: anywhere; }
+.order-title .order-reference { font-family: Consolas, monospace; font-size: .62em; letter-spacing: 1px; color: #765035; }
+.order-meta { margin: 0 0 28px; color: #6a6055; }
+.order-page h2 { margin: 0 0 10px; font-family: Georgia, 'Times New Roman', serif; font-size: 22px; font-weight: 400; }
+.order-details { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 24px 48px; margin-bottom: 30px; }
+.order-details address { font-style: normal; line-height: 1.7; }
+.order-details p { margin: 0; }
+.order-facts { margin: 0; }
+.order-facts > div { display: flex; justify-content: space-between; gap: 16px; padding: 6px 0; }
+.order-facts dt, .order-facts dd { margin: 0; }
+.order-facts dt { color: #6a6055; }
+.order-note { font-size: 13px; }
+.order-totals { max-width: 420px; margin-top: 26px; }
+.order-total { margin-top: 6px; border-top: 1px solid #c5b8a7; font-size: 18px; font-weight: 700; }
+.order-total dt { color: inherit; }

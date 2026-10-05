@@ -3,7 +3,7 @@ import { createAdminAuth } from './auth'
 import { clientAddress } from './client-address'
 import { createContactHandler, mailConfigFromEnv } from './contact'
 import { cleanContent, ContentValidationError, readContent, saveContent } from './content'
-import { createOrderHandler } from './orders'
+import { createOrderHandler, getOrder, listOrders } from './orders'
 import { processPhoto } from './photos'
 import { maxSlugLength, slugPattern } from './slug'
 import {
@@ -53,7 +53,7 @@ const noStore = { 'Cache-Control': 'no-store' }
 function adminRoute<R extends Request>(handler: (request: R) => Promise<Response>) {
   return async (request: R) => {
     if (!adminAuth.authorized(request)) {
-      return Response.json({ error: 'Please sign in to manage products.' }, { status: 401 })
+      return Response.json({ error: 'Please sign in as an admin.' }, { status: 401 })
     }
     try {
       return await handler(request)
@@ -61,7 +61,8 @@ function adminRoute<R extends Request>(handler: (request: R) => Promise<Response
       if (error instanceof ProductConflictError) return Response.json({ error: error.message }, { status: 409 })
       if (error instanceof ContentValidationError) return Response.json({ error: error.message }, { status: 400 })
       if (error instanceof SyntaxError) return Response.json({ error: 'Invalid JSON.' }, { status: 400 })
-      return productsUnavailable(error)
+      console.error('Admin request failed:', error instanceof Error ? error.message : 'Unknown error')
+      return Response.json({ error: 'This is temporarily unavailable. Please try again.' }, { status: 503 })
     }
   }
 }
@@ -178,6 +179,16 @@ const server = Bun.serve({
           return productsUnavailable(error)
         }
       },
+    },
+    // Admin only: orders, newest first, and the full details of one order.
+    '/api/admin/orders': {
+      GET: adminRoute(async () => Response.json(await listOrders(), { headers: noStore })),
+    },
+    '/api/admin/orders/:slug': {
+      GET: adminRoute(async request => {
+        const order = await getOrder(request.params.slug)
+        return order ? Response.json(order, { headers: noStore }) : notFound()
+      }),
     },
     '/api/admin/products': {
       GET: adminRoute(async () => Response.json(await listProducts({ enabledOnly: false }), { headers: noStore })),

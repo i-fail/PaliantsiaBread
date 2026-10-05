@@ -9,9 +9,11 @@ export const router = createRouter({
     { path: '/buy/:slug', component: () => import('./ProductPage.vue') },
     { path: '/contact', component: () => import('./ContactPage.vue') },
     { path: '/checkout', component: () => import('./CheckoutPage.vue') },
+    // One order, in full. Admin only: the API refuses it without an admin session.
+    { path: '/order/:slug', component: () => import('./OrderPage.vue') },
     { path: '/admin', redirect: '/admin/front' },
     // One route record for both tabs, so the page stays mounted (and keeps unsaved edits) when switching.
-    { path: '/admin/:tab(front|products)', component: () => import('./AdminPage.vue') },
+    { path: '/admin/:tab(front|products|orders)', component: () => import('./AdminPage.vue') },
     { path: '/admin/:rest(.*)*', redirect: '/admin/front' },
   ],
   scrollBehavior(_to, _from, savedPosition) {

@@ -3,13 +3,15 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { contentFields, maxHtmlLength, type FrontPageContent } from '../shared/content'
 import { ApiError, requestContent } from './content-api'
+import AdminOrders from './AdminOrders.vue'
 import AdminProducts from './AdminProducts.vue'
 
-type Tab = 'front' | 'products'
+const tabs = ['front', 'products', 'orders'] as const
+type Tab = (typeof tabs)[number]
 const route = useRoute()
 const router = useRouter()
-// The tab lives in the URL (/admin/front, /admin/products) so it can be bookmarked and the back button works.
-const activeTab = computed<Tab>(() => route.params.tab === 'products' ? 'products' : 'front')
+// The tab lives in the URL (/admin/front, /admin/products, /admin/orders) so it can be bookmarked and the back button works.
+const activeTab = computed<Tab>(() => tabs.find(tab => tab === route.params.tab) ?? 'front')
 const selectTab = (tab: Tab) => router.push(`/admin/${tab}`)
 const form = reactive<FrontPageContent>({ title: '', subtitle: '', story: '' })
 const loaded = ref(false)
@@ -25,13 +27,18 @@ const signingOut = ref(false)
 const loginError = ref('')
 const saved = ref('')
 const dirty = computed(() => JSON.stringify(form) !== saved.value)
-// Products load on first visit and stay mounted so a draft survives tab switches.
+// Products and orders load on first visit and stay mounted so a draft survives tab switches.
 const visitedProducts = ref(false)
-watch(activeTab, tab => { if (tab === 'products') visitedProducts.value = true })
+const visitedOrders = ref(false)
+watch(activeTab, tab => {
+  if (tab === 'products') visitedProducts.value = true
+  if (tab === 'orders') visitedOrders.value = true
+})
 
 function sessionExpired() {
   authenticated.value = false
   visitedProducts.value = false
+  visitedOrders.value = false
   loginError.value = 'Your session expired. Sign in again to continue.'
 }
 const labels = { title: 'Title', subtitle: 'Subtitle', story: 'Story' }
@@ -81,6 +88,7 @@ async function signOut() {
     authenticated.value = false
     loaded.value = false
     visitedProducts.value = false
+    visitedOrders.value = false
     Object.assign(form, { title: '', subtitle: '', story: '' })
     saved.value = ''
     message.value = ''
@@ -133,7 +141,10 @@ async function save() {
 async function moveTab(event: KeyboardEvent) {
   if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
   event.preventDefault()
-  const tab: Tab = event.key === 'Home' ? 'front' : event.key === 'End' ? 'products' : activeTab.value === 'front' ? 'products' : 'front'
+  const current = tabs.indexOf(activeTab.value)
+  const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1
+    : (current + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length
+  const tab = tabs[next]!
   await selectTab(tab)
   document.getElementById(`${tab}-tab`)?.focus()
 }
@@ -169,6 +180,7 @@ onMounted(checkSession)
       <div class="admin-tabs" role="tablist" aria-label="Page editor" @keydown="moveTab">
         <button id="front-tab" type="button" role="tab" :aria-selected="activeTab === 'front'" aria-controls="front-panel" :tabindex="activeTab === 'front' ? 0 : -1" @click="selectTab('front')">Front page</button>
         <button id="products-tab" type="button" role="tab" :aria-selected="activeTab === 'products'" aria-controls="products-panel" :tabindex="activeTab === 'products' ? 0 : -1" @click="selectTab('products')">Products page</button>
+        <button id="orders-tab" type="button" role="tab" :aria-selected="activeTab === 'orders'" aria-controls="orders-panel" :tabindex="activeTab === 'orders' ? 0 : -1" @click="selectTab('orders')">Orders</button>
       </div>
 
       <section v-show="activeTab === 'front'" id="front-panel" role="tabpanel" aria-labelledby="front-tab" tabindex="0">
@@ -194,6 +206,10 @@ onMounted(checkSession)
 
       <section v-show="activeTab === 'products'" id="products-panel" role="tabpanel" aria-labelledby="products-tab" tabindex="0">
         <AdminProducts v-if="visitedProducts || activeTab === 'products'" @unauthorized="sessionExpired" />
+      </section>
+
+      <section v-show="activeTab === 'orders'" id="orders-panel" role="tabpanel" aria-labelledby="orders-tab" tabindex="0">
+        <AdminOrders v-if="visitedOrders || activeTab === 'orders'" @unauthorized="sessionExpired" />
       </section>
       </template>
     </main>

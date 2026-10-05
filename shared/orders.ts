@@ -85,3 +85,34 @@ export interface PlacedOrder {
   shippedUnits: number
   boxes: number
 }
+
+// An order's reference: 16 letters and digits.
+export const orderSlugPattern = /^[A-Za-z0-9]{16}$/
+
+// One row of the admin's list of orders.
+export interface OrderSummary {
+  slug: string
+  status: OrderStatus
+  createdAt: string
+  email: string
+  // Total number of products ordered, counting quantities.
+  itemCount: number
+  shippedUnits: number
+  totalCents: number
+}
+
+// Everything stored about an order.
+export interface OrderDetails extends OrderSummary {
+  phone: string
+  // Present only when something is shipped.
+  address: ShippingAddress | null
+  items: OrderItem[]
+  subtotalCents: number
+  shippingCents: number
+  boxes: number
+  currency: string
+}
+
+export function orderStatusLabel(status: OrderStatus): string {
+  return status.charAt(0).toUpperCase() + status.slice(1)
+}
