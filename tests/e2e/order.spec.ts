@@ -360,3 +360,36 @@ test('an international phone number with more than 10 digits is accepted', async
   await expect(page.getByRole('heading', { name: 'Thank you! Your order has been placed.' })).toBeVisible()
   expect(orders[0]!.phone).toBe('+44 20 7946 0958')
 })
+
+test('after ordering, the confirmation links to the order page', async ({ page }) => {
+  await setUp(page, [{ productId: 3, quantity: 1 }])
+  await captureOrders(page)
+  await page.goto('/checkout')
+  await fillContact(page)
+  await page.getByRole('button', { name: 'Place order' }).click()
+  await expect(page.getByRole('heading', { name: 'Thank you! Your order has been placed.' })).toBeVisible()
+  // The reference itself is a link to the order page, as is the button below it.
+  await expect(page.getByRole('link', { name: 'AbCdEfGh12345678' })).toHaveAttribute('href', '/order/AbCdEfGh12345678')
+  await expect(page.getByRole('link', { name: 'View your order' })).toHaveAttribute('href', '/order/AbCdEfGh12345678')
+  await expect(page.getByRole('link', { name: 'Continue shopping' })).toHaveAttribute('href', '/buy')
+})
+
+test('clicking the order reference in the confirmation opens that order', async ({ page }) => {
+  await setUp(page, [{ productId: 3, quantity: 1 }])
+  await captureOrders(page)
+  await page.route('**/api/admin/session', route => route.fulfill({ json: { authenticated: false } }))
+  await page.route('**/api/orders/AbCdEfGh12345678', route => route.fulfill({
+    json: {
+      slug: 'AbCdEfGh12345678', status: 'unpaid', createdAt: '2026-10-04T19:30:00.000Z', email: 'olena@example.com', phone: '(424) 408-0552',
+      address: null, items: [{ productId: 3, sku: 'SKU-3', title: 'Cake', unitPriceCents: 3000, quantity: 1, delivery: 'pickup' }],
+      itemCount: 1, subtotalCents: 3000, shippingCents: 0, totalCents: 3000, shippedUnits: 0, boxes: 0, currency: 'USD',
+    },
+  }))
+  await page.goto('/checkout')
+  await fillContact(page)
+  await page.getByRole('button', { name: 'Place order' }).click()
+  await page.getByRole('link', { name: 'AbCdEfGh12345678' }).click()
+  await expect(page).toHaveURL('/order/AbCdEfGh12345678')
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('AbCdEfGh12345678')
+  await expect(page.getByRole('region', { name: 'Items' })).toContainText('Cake')
+})

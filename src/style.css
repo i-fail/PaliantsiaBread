@@ -253,7 +253,14 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .order-page { max-width: none; }
 .order-title { margin-bottom: 8px; overflow-wrap: anywhere; }
 .order-title .order-reference { font-family: Consolas, monospace; font-size: .62em; letter-spacing: 1px; color: #765035; }
-.order-meta { margin: 0 0 28px; color: #6a6055; }
+.order-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 22px; margin: 0 0 28px; color: #6a6055; }
+.order-status-field { display: inline-flex; align-items: center; gap: 8px; }
+.order-status-select { border: 1px solid #c5b8a7; border-radius: 4px; padding: 7px 10px; background: #fffdf8; font-weight: 600; min-width: 130px; }
+.order-status-select.is-unpaid { color: #9a2b1d; }
+.order-status-select.is-paid, .order-status-select.is-delivered { color: #365c35; }
+.order-status-select.is-shipped { color: #765035; }
+.order-status-select option { color: #392d25; font-weight: 400; }
+.order-status-note { margin: -16px 0 24px; }
 .order-page h2 { margin: 0 0 10px; font-family: Georgia, 'Times New Roman', serif; font-size: 22px; font-weight: 400; }
 .order-details { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 24px 48px; margin-bottom: 30px; }
 .order-details address { font-style: normal; line-height: 1.7; }
@@ -270,3 +277,6 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .order-heading { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 8px 20px; }
 .order-heading .order-title { flex: 1 1 280px; min-width: 0; }
 .order-heading .order-pay { margin: 6px 0 12px; white-space: nowrap; }
+.checkout-confirmation-links { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 22px; margin-top: 8px; }
+.order-reference-link { color: #765035; text-decoration: underline; }
+.order-reference-link:hover { color: #926443; }

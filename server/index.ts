@@ -2,8 +2,9 @@ import { productLimits } from '../shared/products'
 import { createAdminAuth } from './auth'
 import { clientAddress } from './client-address'
 import { createContactHandler, mailConfigFromEnv } from './contact'
+import { createRateLimiter } from './rate-limit'
 import { cleanContent, ContentValidationError, readContent, saveContent } from './content'
-import { createOrderHandler, getOrder, listOrders } from './orders'
+import { cleanOrderStatus, createOrderHandler, getOrder, listOrders, updateOrderStatus } from './orders'
 import { processPhoto } from './photos'
 import { maxSlugLength, slugPattern } from './slug'
 import {
@@ -15,6 +16,8 @@ const maxJsonLength = 1024 * 1024
 
 const handleContact = createContactHandler({ config: mailConfigFromEnv(process.env) })
 const handleOrder = createOrderHandler({ loadProducts: () => listProducts({ enabledOnly: true }) })
+// Looking up an order needs only its random reference, so lookups are limited to keep guessing impractical.
+const orderLookups = createRateLimiter({ max: 120, windowMs: 5 * 60 * 1000 })
 
 const adminAuth = createAdminAuth({
   password: process.env.ADMIN_PASSWORD,
@@ -124,6 +127,22 @@ const server = Bun.serve({
         }
       },
     },
+    // Public: one order, by its random 16-character reference (the link the customer is given). Reading
+    // needs no login; changing anything about an order does (see /api/admin/orders/:slug/status).
+    '/api/orders/:slug': {
+      GET: async (request, server) => {
+        if (!orderLookups.take(clientAddress(request, server.requestIP(request)?.address))) {
+          return Response.json({ error: 'Too many requests. Please try again in a few minutes.' }, { status: 429 })
+        }
+        try {
+          const order = await getOrder(request.params.slug)
+          return order ? Response.json(order, { headers: { ...noStore, 'X-Robots-Tag': 'noindex' } }) : notFound()
+        } catch (error) {
+          console.error('Order lookup failed:', error instanceof Error ? error.message : 'Unknown error')
+          return Response.json({ error: 'This is temporarily unavailable. Please try again.' }, { status: 503 })
+        }
+      },
+    },
     // Public: sends the contact form to the bakery's inbox.
     '/api/contact': {
       POST: async (request, server) => {
@@ -180,13 +199,16 @@ const server = Bun.serve({
         }
       },
     },
-    // Admin only: orders, newest first, and the full details of one order.
+    // Admin only: the list of all orders, newest first.
     '/api/admin/orders': {
       GET: adminRoute(async () => Response.json(await listOrders(), { headers: noStore })),
     },
-    '/api/admin/orders/:slug': {
-      GET: adminRoute(async request => {
-        const order = await getOrder(request.params.slug)
+    // Admin only: change an order's status (unpaid, paid, shipped, delivered).
+    '/api/admin/orders/:slug/status': {
+      PUT: adminRoute(async request => {
+        if (!isJson(request)) return Response.json({ error: 'Send the status as JSON.' }, { status: 415 })
+        const status = cleanOrderStatus(await readJson(request))
+        const order = await updateOrderStatus(request.params.slug, status)
         return order ? Response.json(order, { headers: noStore }) : notFound()
       }),
     },

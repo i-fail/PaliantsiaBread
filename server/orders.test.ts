@@ -3,7 +3,7 @@ import { initialOrderStatus, normalizePhone, orderSlugPattern, orderStatuses, sh
 import type { Product } from '../shared/products'
 import { ContentValidationError } from './content'
 import {
-  buildOrder, cleanAddress, cleanOrderRequest, createOrderHandler, newOrderSlug, orderFromRow, OrderUnavailableError, summaryOf, type NewOrder,
+  buildOrder, cleanAddress, cleanOrderRequest, cleanOrderStatus, createOrderHandler, newOrderSlug, orderFromRow, OrderUnavailableError, summaryOf, type NewOrder,
 } from './orders'
 import { createRateLimiter } from './rate-limit'
 
@@ -290,5 +290,26 @@ describe('reading orders', () => {
     for (const bad of ['', 'short', 'AbCdEfGh1234567', 'AbCdEfGh123456789', 'AbCdEfGh1234567-', "AbCdEfGh1234567' OR 1=1", 'AbCdEfGh12345678\n']) {
       expect(orderSlugPattern.test(bad)).toBe(false)
     }
+  })
+})
+
+describe('changing an order status', () => {
+  test('accepts exactly the four statuses', () => {
+    for (const status of ['unpaid', 'paid', 'shipped', 'delivered']) {
+      expect<string>(cleanOrderStatus({ status })).toBe(status)
+    }
+  })
+
+  test('refuses anything else, including look-alikes and wrong shapes', () => {
+    const bad = [
+      null, undefined, [], 'paid', 5, {}, { status: undefined }, { status: null }, { status: '' }, { status: ' paid' }, { status: 'paid ' },
+      { status: 'PAID' }, { status: 'Paid' }, { status: 'placed' }, { status: 'cancelled' }, { status: 'refunded' },
+      { status: 1 }, { status: ['paid'] }, { status: { value: 'paid' } }, { status: true }, ['paid'],
+    ]
+    for (const input of bad) expect(() => cleanOrderStatus(input)).toThrow(ContentValidationError)
+  })
+
+  test('ignores extra fields, so only the status can be changed through this endpoint', () => {
+    expect(cleanOrderStatus({ status: 'paid', totalCents: 1, email: 'x@y.co', slug: 'AbCdEfGh12345678' })).toBe('paid')
   })
 })

@@ -2,7 +2,7 @@ import { randomInt } from 'node:crypto'
 import { emailPattern } from '../shared/contact'
 import type { Delivery } from '../shared/delivery'
 import {
-  initialOrderStatus, normalizePhone, orderLimits, orderSlugPattern, stateCodes, zipPattern,
+  initialOrderStatus, normalizePhone, orderLimits, orderSlugPattern, orderStatuses, stateCodes, zipPattern,
   type OrderDetails, type OrderItem, type OrderRequest, type OrderStatus, type OrderSummary, type PlacedOrder, type ShippingAddress,
 } from '../shared/orders'
 import { cartTotals, type CartTotals } from '../shared/pricing'
@@ -260,5 +260,22 @@ export async function getOrder(slug: string): Promise<OrderDetails | null> {
   if (!orderSlugPattern.test(slug)) return null
   const db = getDatabase()
   const rows: OrderRow[] = await db`SELECT * FROM orders WHERE slug = ${slug}`
+  return rows[0] ? orderFromRow(rows[0]) : null
+}
+
+// The only thing the status endpoint accepts: { "status": "<one of the four statuses>" }.
+export function cleanOrderStatus(value: unknown): OrderStatus {
+  const status = value && typeof value === 'object' && !Array.isArray(value) ? (value as { status?: unknown }).status : undefined
+  if (typeof status !== 'string' || !(orderStatuses as readonly string[]).includes(status)) {
+    throw new ContentValidationError(`Choose a status: ${orderStatuses.join(', ')}.`)
+  }
+  return status as OrderStatus
+}
+
+// Any status can be changed to any other, so a mistake can be corrected. Returns null for an unknown order.
+export async function updateOrderStatus(slug: string, status: OrderStatus): Promise<OrderDetails | null> {
+  if (!orderSlugPattern.test(slug)) return null
+  const db = getDatabase()
+  const rows: OrderRow[] = await db`UPDATE orders SET status = ${status} WHERE slug = ${slug} RETURNING *`
   return rows[0] ? orderFromRow(rows[0]) : null
 }

@@ -128,11 +128,14 @@ onMounted(load)
 
       <section v-if="placed" class="checkout-confirmation" aria-labelledby="order-placed-title">
         <h2 id="order-placed-title">Thank you! Your order has been placed.</h2>
-        <p>Your order reference is <strong class="order-reference">{{ placed.order.slug }}</strong>. Please keep it for your records.</p>
+        <p>Your order reference is <RouterLink class="order-reference-link" :to="`/order/${placed.order.slug}`"><strong class="order-reference">{{ placed.order.slug }}</strong></RouterLink>. Please keep it for your records.</p>
         <p>Total: <strong>{{ formatPrice(placed.order.totalCents) }}</strong>
           <span v-if="placed.order.shippingCents"> (including {{ formatPrice(placed.order.shippingCents) }} shipping)</span>.</p>
         <p>We’ve received your order and will contact you at {{ placed.email }} with the next steps.</p>
-        <RouterLink class="action-button checkout-continue" to="/buy">Continue shopping</RouterLink>
+        <p class="checkout-confirmation-links">
+          <RouterLink class="action-button checkout-continue" :to="`/order/${placed.order.slug}`">View your order</RouterLink>
+          <RouterLink class="contact-link" to="/buy">Continue shopping</RouterLink>
+        </p>
       </section>
 
       <p v-else-if="!lines.length" class="checkout-empty" role="status">
