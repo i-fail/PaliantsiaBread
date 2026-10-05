@@ -6,6 +6,7 @@ import { formatPrice } from '../shared/products'
 import CartIndicator from './CartIndicator.vue'
 import { ApiError } from './content-api'
 import { getOrderDetails, isAdminSession, startPayment, updateOrderStatus } from './orders-api'
+import { clearPayFlag, hasPayFlag, setPayFlag } from './payment-flag'
 
 const year = new Date().getFullYear()
 const route = useRoute()
@@ -52,36 +53,9 @@ const payError = ref('')
 const waiting = ref(false)
 const waitTimedOut = ref(false)
 const justPaid = ref(false)
-const payFlagKey = 'palianytsia-payment-started'
-const payFlagLifetime = 30 * 60 * 1000
 const pollEvery = 3000
 const pollLimit = 20
 let pollTimer: number | undefined
-
-function setPayFlag(slug: string) {
-  try {
-    sessionStorage.setItem(payFlagKey, JSON.stringify({ slug, at: Date.now() }))
-  } catch {
-    // Without it the page simply will not wait for the confirmation; paying still works.
-  }
-}
-
-function hasPayFlag(slug: string) {
-  try {
-    const flag = JSON.parse(sessionStorage.getItem(payFlagKey) ?? 'null')
-    return flag?.slug === slug && typeof flag.at === 'number' && Date.now() - flag.at < payFlagLifetime
-  } catch {
-    return false
-  }
-}
-
-function clearPayFlag() {
-  try {
-    sessionStorage.removeItem(payFlagKey)
-  } catch {
-    // Nothing to clear.
-  }
-}
 
 function stopWaiting() {
   window.clearTimeout(pollTimer)

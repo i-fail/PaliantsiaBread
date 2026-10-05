@@ -23,7 +23,19 @@ async function captureOrders(page: Page, response: { status?: number; json: unkn
     bodies.push(route.request().postDataJSON())
     return route.fulfill(response)
   })
+  await page.route('**/api/orders/*/pay', route => route.fulfill({ status: 503, json: { error: 'Online payment is not available right now. Please contact us to pay.' } }))
   return bodies
+}
+
+// Paying works: the server hands back an address for Square's checkout page (a page on our own origin stands in for it).
+async function paymentWorks(page: Page) {
+  const calls: string[] = []
+  await page.route('**/api/orders/*/pay', route => {
+    calls.push(route.request().method() + ' ' + new URL(route.request().url()).pathname)
+    return route.fulfill({ json: { url: new URL(route.request().url()).origin + '/fake-square-checkout' } })
+  })
+  await page.route('**/fake-square-checkout', route => route.fulfill({ contentType: 'text/html', body: '<h1>Square checkout</h1>' }))
+  return calls
 }
 
 async function fillContact(page: Page) {
@@ -392,4 +404,127 @@ test('clicking the order reference in the confirmation opens that order', async 
   await expect(page).toHaveURL('/order/AbCdEfGh12345678')
   await expect(page.getByRole('heading', { level: 1 })).toContainText('AbCdEfGh12345678')
   await expect(page.getByRole('region', { name: 'Items' })).toContainText('Cake')
+})
+
+// ---- Place order goes straight on to payment ----
+
+test('Place order creates the order and then sends the customer to pay for it', async ({ page }) => {
+  await setUp(page, [{ productId: 1, quantity: 2 }])
+  const orders = await captureOrders(page)
+  const payments = await paymentWorks(page)
+  const sequence: string[] = []
+  page.on('request', request => {
+    const path = new URL(request.url()).pathname
+    if (request.method() === 'POST' && path.startsWith('/api/orders')) sequence.push(path)
+  })
+  await page.goto('/checkout')
+  await fillContact(page)
+  await fillAddress(page)
+  await page.getByRole('button', { name: 'Place order' }).click()
+
+  await expect(page).toHaveURL('/fake-square-checkout')
+  await expect(page.getByRole('heading', { name: 'Square checkout' })).toBeVisible()
+  // The order first, then the payment for that very order.
+  expect(sequence).toEqual(['/api/orders', '/api/orders/AbCdEfGh12345678/pay'])
+  expect(orders).toHaveLength(1)
+  expect(payments).toEqual(['POST /api/orders/AbCdEfGh12345678/pay'])
+})
+
+test('the cart is emptied as soon as the order exists, and a note is left so the order page can wait for the confirmation', async ({ page }) => {
+  await setUp(page, [{ productId: 3, quantity: 1 }])
+  await captureOrders(page)
+  await paymentWorks(page)
+  await page.goto('/checkout')
+  await fillContact(page)
+  await page.getByRole('button', { name: 'Place order' }).click()
+  await expect(page).toHaveURL('/fake-square-checkout')
+
+  expect(await page.evaluate(() => localStorage.getItem('palianytsia-cart'))).toBe('[]')
+  const note = await page.evaluate(() => JSON.parse(sessionStorage.getItem('palianytsia-payment-started') ?? 'null'))
+  expect(note.slug).toBe('AbCdEfGh12345678')
+})
+
+test('while the payment page is being prepared, the customer sees that, and cannot place the order twice', async ({ page }) => {
+  await setUp(page, [{ productId: 3, quantity: 1 }])
+  const orders = await captureOrders(page)
+  let release!: () => void
+  const gate = new Promise<void>(resolve => { release = resolve })
+  await page.route('**/api/orders/*/pay', async route => {
+    await gate
+    await route.fulfill({ json: { url: new URL(route.request().url()).origin + '/fake-square-checkout' } })
+  })
+  await page.route('**/fake-square-checkout', route => route.fulfill({ contentType: 'text/html', body: '<h1>Square checkout</h1>' }))
+  await page.goto('/checkout')
+  await fillContact(page)
+  await page.getByRole('button', { name: 'Place order' }).click()
+
+  await expect(page.getByRole('status')).toContainText('Taking you to the secure payment page')
+  await expect(page.getByRole('button', { name: 'Place order' })).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: 'Thank you! Your order has been placed.' })).toHaveCount(0)
+  release()
+  await expect(page).toHaveURL('/fake-square-checkout')
+  expect(orders).toHaveLength(1)
+})
+
+test('if payment cannot be started, the order is still saved and the customer is told how to pay', async ({ page }) => {
+  await setUp(page, [{ productId: 3, quantity: 1 }])
+  const orders = await captureOrders(page) // the default: paying is unavailable
+  await page.goto('/checkout')
+  await fillContact(page)
+  await page.getByRole('button', { name: 'Place order' }).click()
+
+  await expect(page.getByRole('heading', { name: 'Thank you! Your order has been placed.' })).toBeVisible()
+  await expect(page.getByText('This order is not paid yet')).toBeVisible()
+  await expect(page.getByRole('link', { name: 'AbCdEfGh12345678' })).toHaveAttribute('href', '/order/AbCdEfGh12345678')
+  await expect(page.getByRole('link', { name: 'View your order and pay' })).toHaveAttribute('href', '/order/AbCdEfGh12345678')
+  // Saved once, cart emptied, so the customer cannot create a duplicate by reloading.
+  expect(orders).toHaveLength(1)
+  expect(await page.evaluate(() => localStorage.getItem('palianytsia-cart'))).toBe('[]')
+  expect(await page.evaluate(() => sessionStorage.getItem('palianytsia-payment-started'))).toBeNull()
+})
+
+test('a payment that fails with a server error or a nonsense answer also falls back to the saved order', async ({ page }) => {
+  for (const response of [
+    { status: 502, json: { error: 'We couldn’t start the payment right now.' } },
+    { status: 200, json: { url: 'javascript:alert(1)' } },
+    { status: 200, json: {} },
+  ]) {
+    const context = await page.context().browser()!.newContext()
+    const fresh = await context.newPage()
+    await setUp(fresh, [{ productId: 3, quantity: 1 }])
+    await captureOrders(fresh)
+    await fresh.route('**/api/orders/*/pay', route => route.fulfill(response))
+    await fresh.goto('/checkout')
+    await fillContact(fresh)
+    await fresh.getByRole('button', { name: 'Place order' }).click()
+    await expect(fresh.getByRole('heading', { name: 'Thank you! Your order has been placed.' })).toBeVisible()
+    await expect(fresh.getByText('This order is not paid yet')).toBeVisible()
+    await expect(fresh).toHaveURL('/checkout')
+    await context.close()
+  }
+})
+
+test('payment is only started for an order that was actually created', async ({ page }) => {
+  await setUp(page, [{ productId: 3, quantity: 1 }])
+  await captureOrders(page, { status: 409, json: { error: 'Some items in your cart are no longer available. Please review your cart and try again.' } })
+  const payments = await paymentWorks(page)
+  await page.goto('/checkout')
+  await fillContact(page)
+  await page.getByRole('button', { name: 'Place order' }).click()
+  await expect(page.getByRole('alert')).toContainText('no longer available')
+  expect(payments).toEqual([])
+  await expect(page).toHaveURL('/checkout')
+  await expect(page.getByRole('button', { name: 'Place order' })).toBeEnabled()
+  expect(await page.evaluate(() => localStorage.getItem('palianytsia-cart'))).not.toBe('[]')
+})
+
+test('a pickup-only order goes to payment just the same', async ({ page }) => {
+  await setUp(page, [{ productId: 3, quantity: 1 }])
+  await captureOrders(page)
+  const payments = await paymentWorks(page)
+  await page.goto('/checkout')
+  await fillContact(page)
+  await page.getByRole('button', { name: 'Place order' }).click()
+  await expect(page).toHaveURL('/fake-square-checkout')
+  expect(payments).toHaveLength(1)
 })

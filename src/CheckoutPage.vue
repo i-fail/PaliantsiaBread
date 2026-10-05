@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import { normalizePhone, orderLimits, phoneLimits, shippingStates, zipPattern, type PlacedOrder } from '../shared/orders'
 import { cartTotals, shippingBox } from '../shared/pricing'
@@ -8,7 +8,8 @@ import { loadBuyer, saveBuyer, type BuyerDetails } from './buyer-details'
 import { cartItems, clearCart, maxQuantity, removeFromCart, setDelivery, setQuantity } from './cart'
 import CartIndicator from './CartIndicator.vue'
 import { ApiError } from './content-api'
-import { placeOrder } from './orders-api'
+import { placeOrder, startPayment } from './orders-api'
+import { setPayFlag } from './payment-flag'
 import { listPublicProducts } from './products-api'
 
 const year = new Date().getFullYear()
@@ -75,6 +76,16 @@ const stateCodeOptions = shippingStates.map(([code]) => code).sort()
 const placing = ref(false)
 const orderError = ref('')
 const placed = ref<{ order: PlacedOrder; email: string; shipped: boolean } | null>(null)
+// After the order is saved the customer is sent straight on to pay. While that happens, this is true.
+const startingPayment = ref(false)
+
+// Coming back with the browser's Back button can restore this page as it was left, mid-redirect. The order is saved
+// but unpaid, so show where it stands instead of a page that never finishes.
+function onPageShow(event: PageTransitionEvent) {
+  if (event.persisted && startingPayment.value) startingPayment.value = false
+}
+onMounted(() => window.addEventListener('pageshow', onPageShow))
+onBeforeUnmount(() => window.removeEventListener('pageshow', onPageShow))
 
 async function submitOrder() {
   orderError.value = ''
@@ -98,12 +109,27 @@ async function submitOrder() {
     placed.value = { order, email: buyer.email.trim(), shipped: order.shippedUnits > 0 }
     clearCart()
     window.scrollTo({ top: 0 })
+    await goToPayment(order.slug)
   } catch (cause) {
     orderError.value = cause instanceof Error ? cause.message : 'We couldn’t place your order right now. Please try again or call us.'
     // The cart may have changed on the server (an item sold out or was repriced): show the latest.
     if (cause instanceof ApiError && cause.status === 409) await load()
   } finally {
     placing.value = false
+  }
+}
+
+// The order exists now (unpaid). Send the customer to Square to pay for it. If that cannot be started, they stay
+// here with their order saved and a way to pay later from the order page.
+async function goToPayment(slug: string) {
+  startingPayment.value = true
+  try {
+    const url = await startPayment(slug)
+    setPayFlag(slug)
+    window.location.assign(url)
+    // The browser is leaving this page, so nothing more to show.
+  } catch {
+    startingPayment.value = false
   }
 }
 
@@ -126,14 +152,17 @@ onMounted(load)
     <main aria-label="Checkout" class="buy-main checkout-main">
       <h1>Checkout</h1>
 
-      <section v-if="placed" class="checkout-confirmation" aria-labelledby="order-placed-title">
+      <p v-if="placed && startingPayment" class="checkout-redirecting" role="status">Your order is placed. Taking you to the secure payment page…</p>
+
+      <section v-else-if="placed" class="checkout-confirmation" aria-labelledby="order-placed-title">
         <h2 id="order-placed-title">Thank you! Your order has been placed.</h2>
         <p>Your order reference is <RouterLink class="order-reference-link" :to="`/order/${placed.order.slug}`"><strong class="order-reference">{{ placed.order.slug }}</strong></RouterLink>. Please keep it for your records.</p>
         <p>Total: <strong>{{ formatPrice(placed.order.totalCents) }}</strong>
           <span v-if="placed.order.shippingCents"> (including {{ formatPrice(placed.order.shippingCents) }} shipping)</span>.</p>
+        <p class="checkout-unpaid" role="alert">This order is not paid yet. You can pay for it any time from your order page.</p>
         <p>We’ve received your order and will contact you at {{ placed.email }} with the next steps.</p>
         <p class="checkout-confirmation-links">
-          <RouterLink class="action-button checkout-continue" :to="`/order/${placed.order.slug}`">View your order</RouterLink>
+          <RouterLink class="action-button checkout-continue" :to="`/order/${placed.order.slug}`">View your order and pay</RouterLink>
           <RouterLink class="contact-link" to="/buy">Continue shopping</RouterLink>
         </p>
       </section>

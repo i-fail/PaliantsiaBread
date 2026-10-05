@@ -284,3 +284,5 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .payment-problem { margin: 0 0 26px; padding: 14px 18px; border: 1px solid #dcb8ae; border-radius: 4px; background: #f6e7e2; color: #7a2418; }
 .payment-problem p { margin: 8px 0 0; line-height: 1.5; }
 .order-attention { margin-left: 10px; color: #9a2b1d; font-size: 12px; font-weight: 600; }
+.checkout-redirecting { font-size: 18px; }
+.checkout-unpaid { padding: 10px 14px; border-radius: 4px; background: #f6e7e2; color: #7a2418; }
