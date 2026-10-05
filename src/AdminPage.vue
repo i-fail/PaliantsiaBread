@@ -5,12 +5,13 @@ import { contentFields, maxHtmlLength, type FrontPageContent } from '../shared/c
 import { ApiError, requestContent } from './content-api'
 import AdminOrders from './AdminOrders.vue'
 import AdminProducts from './AdminProducts.vue'
+import AdminServerHealth from './AdminServerHealth.vue'
 
-const tabs = ['front', 'products', 'orders'] as const
+const tabs = ['front', 'products', 'orders', 'server-health'] as const
 type Tab = (typeof tabs)[number]
 const route = useRoute()
 const router = useRouter()
-// The tab lives in the URL (/admin/front, /admin/products, /admin/orders) so it can be bookmarked and the back button works.
+// The tab lives in the URL (/admin/front, /admin/products, /admin/orders, /admin/server-health) so it can be bookmarked and the back button works.
 const activeTab = computed<Tab>(() => tabs.find(tab => tab === route.params.tab) ?? 'front')
 const selectTab = (tab: Tab) => router.push(`/admin/${tab}`)
 const form = reactive<FrontPageContent>({ title: '', subtitle: '', story: '' })
@@ -30,15 +31,18 @@ const dirty = computed(() => JSON.stringify(form) !== saved.value)
 // Products and orders load on first visit and stay mounted so a draft survives tab switches.
 const visitedProducts = ref(false)
 const visitedOrders = ref(false)
+const visitedHealth = ref(false)
 watch(activeTab, tab => {
   if (tab === 'products') visitedProducts.value = true
   if (tab === 'orders') visitedOrders.value = true
+  if (tab === 'server-health') visitedHealth.value = true
 })
 
 function sessionExpired() {
   authenticated.value = false
   visitedProducts.value = false
   visitedOrders.value = false
+  visitedHealth.value = false
   loginError.value = 'Your session expired. Sign in again to continue.'
 }
 const labels = { title: 'Title', subtitle: 'Subtitle', story: 'Story' }
@@ -89,6 +93,7 @@ async function signOut() {
     loaded.value = false
     visitedProducts.value = false
     visitedOrders.value = false
+    visitedHealth.value = false
     Object.assign(form, { title: '', subtitle: '', story: '' })
     saved.value = ''
     message.value = ''
@@ -181,6 +186,7 @@ onMounted(checkSession)
         <button id="front-tab" type="button" role="tab" :aria-selected="activeTab === 'front'" aria-controls="front-panel" :tabindex="activeTab === 'front' ? 0 : -1" @click="selectTab('front')">Front page</button>
         <button id="products-tab" type="button" role="tab" :aria-selected="activeTab === 'products'" aria-controls="products-panel" :tabindex="activeTab === 'products' ? 0 : -1" @click="selectTab('products')">Products page</button>
         <button id="orders-tab" type="button" role="tab" :aria-selected="activeTab === 'orders'" aria-controls="orders-panel" :tabindex="activeTab === 'orders' ? 0 : -1" @click="selectTab('orders')">Orders</button>
+        <button id="server-health-tab" type="button" role="tab" :aria-selected="activeTab === 'server-health'" aria-controls="server-health-panel" :tabindex="activeTab === 'server-health' ? 0 : -1" @click="selectTab('server-health')">Server Health</button>
       </div>
 
       <section v-show="activeTab === 'front'" id="front-panel" role="tabpanel" aria-labelledby="front-tab" tabindex="0">
@@ -210,6 +216,10 @@ onMounted(checkSession)
 
       <section v-show="activeTab === 'orders'" id="orders-panel" role="tabpanel" aria-labelledby="orders-tab" tabindex="0">
         <AdminOrders v-if="visitedOrders || activeTab === 'orders'" @unauthorized="sessionExpired" />
+      </section>
+
+      <section v-show="activeTab === 'server-health'" id="server-health-panel" role="tabpanel" aria-labelledby="server-health-tab" tabindex="0">
+        <AdminServerHealth v-if="visitedHealth || activeTab === 'server-health'" @unauthorized="sessionExpired" />
       </section>
       </template>
     </main>

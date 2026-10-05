@@ -13,7 +13,7 @@ export const router = createRouter({
     { path: '/order/:slug', component: () => import('./OrderPage.vue') },
     { path: '/admin', redirect: '/admin/front' },
     // One route record for both tabs, so the page stays mounted (and keeps unsaved edits) when switching.
-    { path: '/admin/:tab(front|products|orders)', component: () => import('./AdminPage.vue') },
+    { path: '/admin/:tab(front|products|orders|server-health)', component: () => import('./AdminPage.vue') },
     { path: '/admin/:rest(.*)*', redirect: '/admin/front' },
   ],
   scrollBehavior(_to, _from, savedPosition) {

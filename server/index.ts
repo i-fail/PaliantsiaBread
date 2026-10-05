@@ -2,6 +2,7 @@ import { productLimits } from '../shared/products'
 import { createAdminAuth } from './auth'
 import { clientAddress } from './client-address'
 import { createContactHandler, mailConfigFromEnv } from './contact'
+import { collectHealth } from './health'
 import { createRateLimiter } from './rate-limit'
 import { squareConfigFromEnv } from './square'
 import { cleanContent, ContentValidationError, readContent, saveContent } from './content'
@@ -214,6 +215,10 @@ const server = Bun.serve({
           return productsUnavailable(error)
         }
       },
+    },
+    // Admin only: how the server is doing (disk, CPU, memory, and when the site's certificate expires).
+    '/api/admin/server-health': {
+      GET: adminRoute(async () => Response.json(await collectHealth(process.env), { headers: noStore })),
     },
     // Admin only: the list of all orders, newest first.
     '/api/admin/orders': {

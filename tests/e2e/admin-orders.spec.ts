@@ -145,19 +145,23 @@ test('an expired session on the Orders tab returns to the sign-in form', async (
   await expect(page.getByRole('alert')).toContainText('session expired')
 })
 
-test('the three tabs are reachable with the arrow keys, wrapping around', async ({ page }) => {
+test('the four tabs are reachable with the arrow keys, wrapping around', async ({ page }) => {
   await mockAdmin(page)
+  await page.route('**/api/admin/server-health', route => route.fulfill({ json: { checkedAt: '2026-10-05T12:00:00.000Z', disk: null, cpu: null, ram: null, ssl: null, problems: {} } }))
   await page.goto('/admin/front')
   await page.getByRole('tab', { name: 'Front page' }).focus()
   await page.keyboard.press('ArrowLeft')
+  await expect(page).toHaveURL('/admin/server-health')
+  await expect(page.getByRole('tab', { name: 'Server Health' })).toBeFocused()
+  await page.keyboard.press('ArrowLeft')
   await expect(page).toHaveURL('/admin/orders')
-  await expect(page.getByRole('tab', { name: 'Orders' })).toBeFocused()
+  await page.keyboard.press('ArrowRight')
   await page.keyboard.press('ArrowRight')
   await expect(page).toHaveURL('/admin/front')
   await page.keyboard.press('End')
-  await expect(page).toHaveURL('/admin/orders')
-  await page.keyboard.press('ArrowLeft')
-  await expect(page).toHaveURL('/admin/products')
+  await expect(page).toHaveURL('/admin/server-health')
+  await page.keyboard.press('Home')
+  await expect(page).toHaveURL('/admin/front')
 })
 
 test('an unpaid order has a Pay button at the right, level with the heading and not in the header', async ({ page }) => {

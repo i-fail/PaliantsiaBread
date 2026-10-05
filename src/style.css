@@ -286,3 +286,26 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .order-attention { margin-left: 10px; color: #9a2b1d; font-size: 12px; font-weight: 600; }
 .checkout-redirecting { font-size: 18px; }
 .checkout-unpaid { padding: 10px 14px; border-radius: 4px; background: #f6e7e2; color: #7a2418; }
+.health-admin { padding-top: 18px; }
+.health-heading { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px 24px; margin-bottom: 18px; }
+.health-heading h2 { margin: 0 0 4px; font-family: Georgia, 'Times New Roman', serif; font-size: 24px; font-weight: 400; }
+.health-heading .admin-help { margin: 0; }
+.health-refresh { padding: 9px 18px; }
+.health-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 16px; }
+.health-card { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 12px; padding: 20px 16px; text-align: center; border: 1px solid #dcd4c7; border-radius: 12px; background: #fffdf8; }
+.health-label { color: #6a6055; font-size: 13px; letter-spacing: .5px; text-transform: uppercase; }
+.health-ring { position: relative; width: 140px; height: 140px; display: grid; place-items: center; }
+.health-ring svg { width: 140px; height: 140px; transform: rotate(-90deg); }
+.health-track, .health-fill { fill: none; stroke-width: 16; }
+.health-track { stroke: #e8dfd0; }
+.health-fill { transition: stroke-dasharray .25s ease; }
+.health-ring-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.health-ring-center strong { font-size: 22px; line-height: 1; color: #392d25; }
+.health-ring-center span { margin-top: 5px; color: #6a6055; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
+.health-value { font-size: 28px; line-height: 1.1; color: #392d25; }
+.health-note { color: #6a6055; font-size: 14px; overflow-wrap: anywhere; }
+.health-source { font-size: 12px; }
+.health-problem { color: #9a2b1d; }
+.health-card.is-danger { border-color: #dcb8ae; background: #f6e7e2; }
+.health-card.is-danger .health-value, .health-card.is-danger .health-label, .health-card.is-danger .health-note { color: #9a2b1d; }
+.health-checked { margin: 16px 0 0; }

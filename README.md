@@ -51,6 +51,12 @@ Sessions use an HttpOnly, SameSite=Strict cookie and last eight hours. They are 
 
 The title and subtitle accept inline formatting; the story also accepts paragraphs, lists, blockquotes, and headings. The server removes scripts, event handlers, styles, and unsafe links, and rejects empty or oversized fields. The editor displays the cleaned HTML after saving. The homepage loads saved content from `GET /api/front-page`; authenticated edits use `PUT /api/front-page`. There is no hardcoded homepage text fallback.
 
+## Server Health
+
+The **Server Health** tab in `/admin` (`/admin/server-health`) shows how the server is doing: disk used (and gigabytes left), average CPU use, RAM used (and gigabytes free), and how many days remain on the site's SSL certificate. **Refresh** takes new measurements; they are only taken when the tab is opened or refreshed. Rings turn red above 90%, and the certificate card turns red when fewer than 14 days remain (Let's Encrypt certificates are renewed with 30 days left, so under 14 means renewal has been failing).
+
+The figures come from `GET /api/admin/server-health`, which needs the admin session. Each one is measured on its own, so one that cannot be taken shows "Unavailable" with the reason while the others still appear. Disk comes from `df` for the folder the API runs in; RAM is the system's "available" memory (`MemAvailable` on Linux); CPU is sampled over half a second. The certificate is read by connecting to `SITE_URL` over HTTPS the way a visitor does, so it needs no access to Let's Encrypt's root-only files and shows what visitors really get. It says "Unavailable" when `SITE_URL` is not an `https` address. Set `SSL_CERT_PATH` only if you would rather read a certificate file (which must be readable by the user running the API).
+
 ## Products
 
 The **Products page** tab in `/admin` lists products and lets you add and edit them. Each product has a SKU (letters, numbers, dots, dashes, underscores; unique ignoring case), a title, a plain-text description, photos, and an enabled flag.
