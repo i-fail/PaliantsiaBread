@@ -35,6 +35,7 @@ h1 > span { display: block; color: #94613d; }
 .story { color: #6a6055; font-size: 14px; line-height: 1.85; }
 .story p { margin: 0 0 18px; }
 .hero-image { display: block; width: 100%; height: auto; border-radius: 3px; }
+.hero-image-mobile { display: none; }
 .photo-gallery { display: grid; grid-template-columns: 1.498fr 0.6675fr 0.6675fr; gap: clamp(8px, 2vw, 24px); margin-bottom: 64px; }
 .photo-gallery img { display: block; width: 100%; height: 100%; min-width: 0; object-fit: cover; border-radius: 3px; }
 .site-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 18px; padding: 25px 0; border-top: 1px solid #dcd4c7; font-size: 11px; color: #796d5e; }
@@ -48,7 +49,9 @@ h1 > span { display: block; color: #94613d; }
 
 @media (max-width: 900px) {
   .site-shell { padding: 0 5%; }
-  .hero { gap: 30px; }
+  .hero { display: flow-root; padding-bottom: 42px; }
+  .hero-image-desktop { display: none; }
+  .hero-image-mobile { display: block; float: right; width: min(40%, 300px); margin: 6px 0 14px 20px; }
   h1 { font-size: 43px; letter-spacing: -1.8px; }
   .subtitle { font-size: 20px; }
 }
@@ -56,7 +59,6 @@ h1 > span { display: block; color: #94613d; }
 @media (max-width: 680px) {
   .brand-logo { width: 176px; }
   .header-link > span { margin-left: 6px; }
-  .hero { grid-template-columns: 1fr; padding-bottom: 42px; gap: 35px; }
   .photo-gallery { margin-bottom: 42px; }
   h1 { font-size: clamp(39px, 8vw, 53px); }
   .subtitle { margin: 22px 0; }
