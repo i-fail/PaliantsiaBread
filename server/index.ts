@@ -3,6 +3,7 @@ import { createAdminAuth } from './auth'
 import { clientAddress } from './client-address'
 import { createContactHandler, mailConfigFromEnv } from './contact'
 import { cleanContent, ContentValidationError, readContent, saveContent } from './content'
+import { createOrderHandler } from './orders'
 import { processPhoto } from './photos'
 import { maxSlugLength, slugPattern } from './slug'
 import {
@@ -13,6 +14,7 @@ import {
 const maxJsonLength = 1024 * 1024
 
 const handleContact = createContactHandler({ config: mailConfigFromEnv(process.env) })
+const handleOrder = createOrderHandler({ loadProducts: () => listProducts({ enabledOnly: true }) })
 
 const adminAuth = createAdminAuth({
   password: process.env.ADMIN_PASSWORD,
@@ -104,6 +106,20 @@ const server = Bun.serve({
             return Response.json({ error: error instanceof SyntaxError ? 'Invalid JSON.' : error.message }, { status: 400 })
           }
           return contentUnavailable(error)
+        }
+      },
+    },
+    // Public: places an order. Prices and shipping are recomputed here from the product list.
+    '/api/orders': {
+      POST: async (request, server) => {
+        if (!isJson(request)) return Response.json({ error: 'Send the order as JSON.' }, { status: 415 })
+        try {
+          return await handleOrder(await readJson(request), clientAddress(request, server.requestIP(request)?.address))
+        } catch (error) {
+          if (error instanceof SyntaxError) return Response.json({ error: 'Invalid JSON.' }, { status: 400 })
+          if (error instanceof ContentValidationError) return Response.json({ error: error.message }, { status: 400 })
+          console.error('Order request failed:', error instanceof Error ? error.message : 'Unknown error')
+          return Response.json({ error: 'We couldn’t place your order right now. Please try again or call us.' }, { status: 500 })
         }
       },
     },

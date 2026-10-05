@@ -1,6 +1,8 @@
 import { computed, ref } from 'vue'
 
-export type Delivery = 'ship' | 'pickup'
+import type { Delivery } from '../shared/delivery'
+
+export type { Delivery }
 
 export interface CartItem {
   productId: number
@@ -63,6 +65,11 @@ export function setDelivery(productId: number, delivery: Delivery) {
   const existing = items.value.find(item => item.productId === productId)
   if (!existing) return
   existing.delivery = delivery
+  save()
+}
+
+export function clearCart() {
+  items.value = []
   save()
 }
 

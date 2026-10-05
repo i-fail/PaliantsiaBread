@@ -214,3 +214,22 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .checkout-delivery label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; white-space: nowrap; }
 .checkout-delivery input { margin: 0; }
 .checkout-pickup-note { margin: 12px 0 0; }
+.checkout-column { min-width: 0; }
+.checkout-form { margin-top: 36px; }
+.checkout-form h2 { margin: 0 0 14px; font-family: Georgia, 'Times New Roman', serif; font-size: 24px; font-weight: 400; }
+.checkout-form h3 { margin: 26px 0 4px; font-family: Georgia, 'Times New Roman', serif; font-size: 20px; font-weight: 400; }
+.checkout-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.checkout-field { display: grid; gap: 7px; align-content: start; grid-column: span 1; }
+.checkout-field-wide { grid-column: 1 / -1; }
+.checkout-field label { font-weight: 600; font-size: 14px; }
+.checkout-field input, .checkout-field select { width: 100%; border: 1px solid #c5b8a7; border-radius: 4px; padding: 11px 12px; background: #fffdf8; color: #392d25; }
+.checkout-form > .admin-help { margin: 0 0 14px; }
+.checkout-form .error-message { margin: 18px 0 0; }
+.checkout-place { margin-top: 24px; }
+.checkout-confirmation { max-width: 620px; padding: 26px; background: #f1eadd; border-radius: 4px; }
+.checkout-confirmation h2 { margin: 0 0 14px; font-family: Georgia, 'Times New Roman', serif; font-size: 28px; font-weight: 400; }
+.checkout-confirmation p { margin: 0 0 12px; line-height: 1.6; }
+.order-reference { font-family: Consolas, monospace; font-size: 18px; letter-spacing: 1px; word-break: break-all; }
+.checkout-continue { display: inline-block; margin-top: 8px; }
+@media (max-width: 700px) { .checkout-fields { grid-template-columns: minmax(0, 1fr); } .checkout-field, .checkout-field-wide { grid-column: 1 / -1; } }
+.checkout-place-help { margin: 10px 0 0; }
