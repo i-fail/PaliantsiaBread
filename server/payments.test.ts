@@ -1,5 +1,5 @@
 import { createHmac } from 'node:crypto'
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, spyOn, test } from 'bun:test'
 import type { OrderDetails } from '../shared/orders'
 import { createPaymentHandlers, type PaymentStore } from './payments'
 import { createRateLimiter } from './rate-limit'
@@ -220,6 +220,42 @@ describe('the Square webhook', () => {
     const response = await handlers.handleWebhook(body.replace('PAY-1', 'PAY-2'), sign(body))
     expect(response.status).toBe(403)
     expect(state.order.status).toBe('unpaid')
+  })
+
+  test('says in the log why a request was refused, without revealing any secret', async () => {
+    const errors: string[] = []
+    const spy = spyOn(console, 'error').mockImplementation((...args: unknown[]) => { errors.push(args.join(' ')) })
+    try {
+      const { handlers } = make()
+      await handlers.handleWebhook(paymentEvent(), sign(paymentEvent(), 'wrong-key'))
+      expect(errors.join('\n')).toContain('the signature does not match')
+      expect(errors.join('\n')).toContain('SQUARE_WEBHOOK_URL')
+      expect(errors.join('\n')).not.toMatch(/webhook-key|secret-access-token|wrong-key/)
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  test('records in the log what it did with each event it accepted', async () => {
+    const lines: string[] = []
+    const spy = spyOn(console, 'log').mockImplementation((...args: unknown[]) => { lines.push(args.join(' ')) })
+    try {
+      const other = JSON.stringify({ type: 'order.updated', data: {} })
+      await make().handlers.handleWebhook(other, sign(other))
+      const approved = paymentEvent({ status: 'APPROVED' })
+      await make().handlers.handleWebhook(approved, sign(approved))
+      const good = paymentEvent()
+      await make().handlers.handleWebhook(good, sign(good))
+      const text = lines.join('\n')
+      expect(text).toContain('order.updated - ignored')
+      expect(text).toContain('payment PAY-1 is APPROVED for Square order SQ-ORDER-1')
+      expect(text).toContain('payment PAY-1 is COMPLETED for Square order SQ-ORDER-1')
+      expect(text).toContain('Order ' + baseOrder.slug + ' marked paid')
+      // No customer details in any line.
+      expect(text).not.toMatch(/olena|408-0552|Main St/i)
+    } finally {
+      spy.mockRestore()
+    }
   })
 
   test('is switched off until the signature key and address are configured', async () => {

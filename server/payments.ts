@@ -120,6 +120,7 @@ export function createPaymentHandlers({
       return json({ error: 'Not configured.' }, 503)
     }
     if (!verifyWebhookSignature({ body: rawBody, signatureHeader: signature, signatureKey: config.webhookSignatureKey, notificationUrl: config.webhookUrl })) {
+      console.error('Square webhook refused: the signature does not match. Check that SQUARE_WEBHOOK_SIGNATURE_KEY is the key of this webhook subscription (sandbox and production have different ones), and that SQUARE_WEBHOOK_URL is exactly the notification URL entered in Square.')
       return json({ error: 'Invalid signature.' }, 403)
     }
 
@@ -130,9 +131,16 @@ export function createPaymentHandlers({
       return json({ error: 'Invalid JSON.' }, 400)
     }
     // Everything below answers 200 for events that need no action, so Square does not keep retrying them.
-    if (event.type !== 'payment.created' && event.type !== 'payment.updated') return json({ ok: true, ignored: 'event type' })
+    if (event.type !== 'payment.created' && event.type !== 'payment.updated') {
+      console.log('Square webhook', String(event.type).slice(0, 60), '- ignored (only payment.created and payment.updated matter)')
+      return json({ ok: true, ignored: 'event type' })
+    }
     const payment = event.data?.object?.payment
-    if (!payment?.id || !payment.order_id) return json({ ok: true, ignored: 'no payment' })
+    if (!payment?.id || !payment.order_id) {
+      console.log('Square webhook', event.type, '- ignored (no payment or no order in it)')
+      return json({ ok: true, ignored: 'no payment' })
+    }
+    console.log('Square webhook', event.type, '- payment', payment.id, 'is', payment.status, 'for Square order', payment.order_id)
     if (payment.status !== 'COMPLETED') return json({ ok: true, ignored: 'payment not completed' })
 
     try {
