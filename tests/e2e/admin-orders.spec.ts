@@ -167,3 +167,47 @@ test('the three tabs are reachable with the arrow keys, wrapping around', async 
   await page.keyboard.press('ArrowLeft')
   await expect(page).toHaveURL('/admin/products')
 })
+
+test('an unpaid order has a Pay button in the top-right corner', async ({ page }) => {
+  await mockAdmin(page)
+  await page.goto('/order/AbCdEfGh12345678')
+  await expect(page.getByText('Unpaid')).toBeVisible()
+
+  const pay = page.getByRole('button', { name: 'Pay' })
+  await expect(pay).toBeVisible()
+  const box = (await pay.boundingBox())!
+  const viewport = page.viewportSize()!
+  expect(box.y).toBeLessThan(80) // in the header, at the top
+  expect(box.x + box.width).toBeGreaterThan(viewport.width * 0.9) // against the right edge
+  expect(box.x).toBeGreaterThan(viewport.width / 2)
+})
+
+test('orders that are no longer unpaid have no Pay button', async ({ page }) => {
+  const others = ['paid', 'shipped', 'delivered'].map((status, index) => ({ ...pickup, slug: `StatusOrder00000${index}`, status }))
+  await mockAdmin(page, [shipped, ...others])
+  for (const order of others) {
+    await page.goto(`/order/${order.slug}`)
+    await expect(page.getByRole('heading', { level: 1 })).toContainText(order.slug)
+    await expect(page.getByRole('button', { name: 'Pay' })).toHaveCount(0)
+  }
+  // And it is not shown while the order is still loading or missing.
+  await page.goto('/order/NoSuchOrder000000')
+  await expect(page.getByRole('alert')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Pay' })).toHaveCount(0)
+})
+
+test('the Pay button does nothing for now', async ({ page }) => {
+  await mockAdmin(page)
+  await page.goto('/order/AbCdEfGh12345678')
+  const pay = page.getByRole('button', { name: 'Pay' })
+  await expect(pay).toBeVisible()
+
+  const requests: string[] = []
+  page.on('request', request => requests.push(`${request.method()} ${request.url()}`))
+  await pay.click()
+  await pay.click()
+  await expect(page).toHaveURL('/order/AbCdEfGh12345678')
+  await expect(page.getByText('Unpaid')).toBeVisible()
+  await expect(pay).toBeVisible()
+  expect(requests).toEqual([])
+})

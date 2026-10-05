@@ -27,15 +27,20 @@ export const orderLimits = {
 
 export const zipPattern = /^\d{5}(-\d{4})?$/
 
-// Reads a US phone number typed in any common format and returns it as "(424) 408-0552", or null when it
-// is not a valid 10-digit number (an optional leading country code 1 is accepted).
+// 10 digits or more. 15 is the longest an international number can be, and the length cap keeps what is stored sane.
+export const phoneLimits = { minDigits: 10, maxDigits: 15, maxLength: 30 } as const
+
+// A phone number is good when it has at least 10 digits; whatever else is typed around them (spaces, dashes,
+// brackets, dots, a "+", even a note such as "cell") is ignored for the count. A US number (10 digits, or 11
+// with a leading country code 1) is returned in one standard form, "(424) 408-0552"; any longer number, such
+// as an international one, is kept as typed. Returns null when it has too few digits.
 export function normalizePhone(text: string): string | null {
-  if (/[^\d\s().+-]/.test(text)) return null
-  let digits = text.replace(/\D/g, '')
-  if (digits.length === 11 && digits.startsWith('1')) digits = digits.slice(1)
-  // Area codes and exchanges never start with 0 or 1.
-  if (!/^[2-9]\d{2}[2-9]\d{6}$/.test(digits)) return null
-  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`
+  const typed = text.trim().replace(/\s+/g, ' ')
+  if (typed.length > phoneLimits.maxLength) return null
+  const digits = typed.replace(/\D/g, '')
+  if (digits.length < phoneLimits.minDigits || digits.length > phoneLimits.maxDigits) return null
+  const us = digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits
+  return us.length === 10 ? `(${us.slice(0, 3)}) ${us.slice(3, 6)}-${us.slice(6)}` : typed
 }
 
 export interface ShippingAddress {

@@ -38,16 +38,42 @@ describe('order references', () => {
 })
 
 describe('phone numbers', () => {
-  test('are accepted in common formats and stored in one', () => {
-    for (const text of ['4244080552', '424-408-0552', '(424) 408-0552', '+1 424 408 0552', '1.424.408.0552'.replace(/\./g, '-')]) {
+  test('US numbers are accepted in any format and stored in one', () => {
+    for (const text of [
+      '4244080552', '424-408-0552', '(424) 408-0552', '424.408.0552', '424 408 0552', ' 424 408 0552 ',
+      '+1 424 408 0552', '1-424-408-0552', '424/408/0552', '424-408-0552 (cell)', 'call 424 408 0552', '4 2 4 4 0 8 0 5 5 2',
+    ]) {
       expect(normalizePhone(text)).toBe('(424) 408-0552')
     }
   })
 
-  test('must be a valid 10-digit US number', () => {
-    for (const text of ['', '123', '22345678901', '0244080552', '4241080552', 'call me', '424-408-055x', '+44 20 7946 0958']) {
+  test('numbers with more than the 10 US digits are accepted and kept as typed', () => {
+    expect(normalizePhone('+44 20 7946 0958')).toBe('+44 20 7946 0958')
+    expect(normalizePhone('  +380   44 123 4567  ')).toBe('+380 44 123 4567')
+    // 11 digits that do not start with the country code 1 are not a US number either.
+    expect(normalizePhone('22345678901')).toBe('22345678901')
+    expect(normalizePhone('42440805520')).toBe('42440805520')
+    expect(normalizePhone('+49 (30) 1234 5678 9')).toBe('+49 (30) 1234 5678 9')
+  })
+
+  test('up to 15 digits are accepted, but no more', () => {
+    expect(normalizePhone('123456789012345')).toBe('123456789012345')
+    expect(normalizePhone('1234567890123456')).toBeNull()
+  })
+
+  test('are not held to North American numbering rules', () => {
+    // Area codes and exchanges starting with 0 or 1 are not valid in practice, but the form no longer cares.
+    expect(normalizePhone('0244080552')).toBe('(024) 408-0552')
+    expect(normalizePhone('4241080552')).toBe('(424) 108-0552')
+    expect(normalizePhone('1111111111')).toBe('(111) 111-1111')
+  })
+
+  test('are refused with fewer than 10 digits, or when far too long', () => {
+    for (const text of ['', '   ', 'call me', '123', '424-408-055', '424-408-055x', '+1 424 408 05', '(424) 408', 'x'.repeat(40)]) {
       expect(normalizePhone(text)).toBeNull()
     }
+    // Many digits, but typed with so much around them that it would not fit in the field.
+    expect(normalizePhone('call me on 424 408 0552 any time you like')).toBeNull()
   })
 })
 
@@ -74,6 +100,16 @@ describe('order request validation', () => {
     expect(result.email).toBe('olena@example.com')
     expect(result.phone).toBe('(424) 408-0552')
     expect(result.items).toEqual([{ productId: 1, quantity: 2, delivery: 'ship' }])
+  })
+
+  test('stores any phone number with 10 digits in one standard form', () => {
+    for (const phone of ['4244080552', 'call 424 408 0552', '+1 (424) 408-0552', '424.408.0552 (cell)']) {
+      expect(cleanOrderRequest(request({ phone })).phone).toBe('(424) 408-0552')
+    }
+  })
+
+  test('keeps a longer, international phone number as typed', () => {
+    expect(cleanOrderRequest(request({ phone: ' +44  20 7946 0958 ' })).phone).toBe('+44 20 7946 0958')
   })
 
   test('rejects bad shapes, items, contact details', () => {

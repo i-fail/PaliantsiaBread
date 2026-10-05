@@ -56,7 +56,7 @@ export function cleanOrderRequest(value: unknown): ParsedOrderRequest {
     throw new ContentValidationError('Enter a valid email address.')
   }
   const phone = typeof source.phone === 'string' ? normalizePhone(source.phone) : null
-  if (!phone) throw new ContentValidationError('Enter a valid US phone number.')
+  if (!phone) throw new ContentValidationError('Enter a phone number with at least 10 digits.')
 
   return { items, email, phone, address: source.address }
 }

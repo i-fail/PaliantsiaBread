@@ -47,6 +47,8 @@ watch(() => route.params.slug, load, { immediate: true })
       </RouterLink>
       <div class="admin-header-actions">
         <RouterLink to="/admin/orders">← All orders</RouterLink>
+        <!-- Only unpaid orders can be paid. Taking payment is not built yet, so for now the button does nothing. -->
+        <button v-if="order?.status === 'unpaid'" class="action-button order-pay" type="button">Pay</button>
       </div>
     </header>
 

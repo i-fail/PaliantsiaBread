@@ -265,3 +265,5 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .order-totals { max-width: 420px; margin-top: 26px; }
 .order-total { margin-top: 6px; border-top: 1px solid #c5b8a7; font-size: 18px; font-weight: 700; }
 .order-total dt { color: inherit; }
+.order-pay { padding: 9px 22px; }
+.admin-shell .site-header { padding-block: 8px; }

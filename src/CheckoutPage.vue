@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
-import { normalizePhone, orderLimits, shippingStates, zipPattern, type PlacedOrder } from '../shared/orders'
+import { normalizePhone, orderLimits, phoneLimits, shippingStates, zipPattern, type PlacedOrder } from '../shared/orders'
 import { cartTotals, shippingBox } from '../shared/pricing'
 import { formatPrice, type Product } from '../shared/products'
+import { loadBuyer, saveBuyer, type BuyerDetails } from './buyer-details'
 import { cartItems, clearCart, maxQuantity, removeFromCart, setDelivery, setQuantity } from './cart'
 import CartIndicator from './CartIndicator.vue'
 import { ApiError } from './content-api'
@@ -58,7 +59,9 @@ function changeQuantity(productId: number, event: Event) {
 }
 
 // Buyer details. The address is only asked for, and only sent, when something is being shipped.
-const buyer = reactive({ email: '', phone: '', name: '', street: '', city: '', state: '', zip: '' })
+// What was typed last time is restored, and every change is remembered for next time (also after ordering).
+const buyer = reactive<BuyerDetails>(loadBuyer())
+watch(buyer, () => saveBuyer(buyer))
 const needsAddress = computed(() => totals.value.shippedUnits > 0)
 // Every field that is currently shown must be filled in (spaces alone do not count) before ordering.
 const formComplete = computed(() => {
@@ -76,7 +79,7 @@ const placed = ref<{ order: PlacedOrder; email: string; shipped: boolean } | nul
 async function submitOrder() {
   orderError.value = ''
   if (!normalizePhone(buyer.phone)) {
-    orderError.value = 'Enter a valid US phone number, for example (424) 408-0552.'
+    orderError.value = 'Enter a phone number with at least 10 digits, for example (424) 408-0552.'
     return
   }
   placing.value = true
@@ -182,7 +185,7 @@ onMounted(load)
               </div>
               <div class="checkout-field">
                 <label for="buyer-phone">Phone</label>
-                <input id="buyer-phone" v-model="buyer.phone" type="tel" required autocomplete="tel" inputmode="tel" maxlength="30" :disabled="placing" />
+                <input id="buyer-phone" v-model="buyer.phone" type="tel" required autocomplete="tel" inputmode="tel" :maxlength="phoneLimits.maxLength" :disabled="placing" />
               </div>
             </div>
 

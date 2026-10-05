@@ -134,7 +134,7 @@ test('an invalid phone number is explained and nothing is sent', async ({ page }
   await page.getByLabel('Email').fill('olena@example.com')
   await page.getByLabel('Phone').fill('12345')
   await page.getByRole('button', { name: 'Place order' }).click()
-  await expect(page.getByRole('alert')).toContainText('valid US phone number')
+  await expect(page.getByRole('alert')).toContainText('phone number with at least 10 digits')
   expect(orders).toHaveLength(0)
 })
 
@@ -248,4 +248,115 @@ test('unavailable items are not sent with the order', async ({ page }) => {
   await page.getByRole('button', { name: 'Place order' }).click()
   await expect(page.getByRole('heading', { name: 'Thank you! Your order has been placed.' })).toBeVisible()
   expect(orders[0]!.items).toEqual([{ productId: 3, quantity: 1, delivery: 'pickup' }])
+})
+
+test('what you type is remembered and filled in again on your next visit', async ({ page }) => {
+  await setUp(page, [{ productId: 1, quantity: 1 }])
+  await captureOrders(page)
+  await page.goto('/checkout')
+  await fillContact(page)
+  await fillAddress(page)
+  await expect(page.getByLabel('Email')).toHaveValue('olena@example.com')
+
+  await page.reload()
+  await expect(page.getByLabel('Email')).toHaveValue('olena@example.com')
+  await expect(page.getByLabel('Phone')).toHaveValue('424-408-0552')
+  await expect(page.getByLabel('Name', { exact: true })).toHaveValue('Olena K')
+  await expect(page.getByLabel('Street address')).toHaveValue('1 Main St')
+  await expect(page.getByLabel('City')).toHaveValue('Costa Mesa')
+  await expect(page.getByLabel('State')).toHaveValue('CA')
+  await expect(page.getByLabel('ZIP code')).toHaveValue('92626')
+  // Everything is already filled in, so the order can be placed straight away.
+  await expect(page.getByRole('button', { name: 'Place order' })).toBeEnabled()
+})
+
+test('changes and cleared fields are remembered too', async ({ page }) => {
+  await setUp(page, [{ productId: 1, quantity: 1 }])
+  await page.goto('/checkout')
+  await fillContact(page)
+  await page.getByLabel('Email').fill('')
+  await page.getByLabel('Phone').fill('310-555-0100')
+  await page.reload()
+  await expect(page.getByLabel('Email')).toHaveValue('')
+  await expect(page.getByLabel('Phone')).toHaveValue('310-555-0100')
+})
+
+test('the details are still there after an order is placed, for the next order', async ({ page }) => {
+  await setUp(page, [{ productId: 3, quantity: 1 }])
+  await captureOrders(page)
+  await page.goto('/checkout')
+  await fillContact(page)
+  await page.getByRole('button', { name: 'Place order' }).click()
+  await expect(page.getByRole('heading', { name: 'Thank you! Your order has been placed.' })).toBeVisible()
+
+  // Come back later with a new cart.
+  await page.evaluate(() => localStorage.setItem('palianytsia-cart', JSON.stringify([{ productId: 3, quantity: 2, delivery: 'ship' }])))
+  await page.goto('/checkout')
+  await expect(page.getByLabel('Email')).toHaveValue('olena@example.com')
+  await expect(page.getByLabel('Phone')).toHaveValue('424-408-0552')
+  await expect(page.getByRole('button', { name: 'Place order' })).toBeEnabled()
+})
+
+test('address details typed for a shipped order come back even after a pickup-only visit', async ({ page }) => {
+  await setUp(page, [{ productId: 1, quantity: 1 }])
+  await page.goto('/checkout')
+  await fillAddress(page)
+  await page.getByRole('radio', { name: 'Pickup' }).check()
+  await page.reload()
+  await expect(page.getByLabel('Street address')).toHaveCount(0)
+  await page.getByRole('radio', { name: 'Ship' }).check()
+  await expect(page.getByLabel('Street address')).toHaveValue('1 Main St')
+  await expect(page.getByLabel('State')).toHaveValue('CA')
+})
+
+test('unusable saved details are ignored, including a state we do not ship to', async ({ page }) => {
+  await setUp(page, [{ productId: 1, quantity: 1 }])
+  await page.addInitScript(() => localStorage.setItem('palianytsia-checkout', JSON.stringify({
+    email: 'saved@example.com', phone: 5, name: 'Olena K', street: '1 Main St', city: 'Anchorage', state: 'AK', zip: '99501',
+  })))
+  await page.goto('/checkout')
+  await expect(page.getByLabel('Email')).toHaveValue('saved@example.com')
+  await expect(page.getByLabel('Phone')).toHaveValue('')
+  await expect(page.getByLabel('City')).toHaveValue('Anchorage')
+  await expect(page.getByLabel('State')).toHaveValue('')
+  await expect(page.getByRole('button', { name: 'Place order' })).toBeDisabled()
+})
+
+test('corrupt saved details do not break the page', async ({ page }) => {
+  await setUp(page, [{ productId: 3, quantity: 1 }])
+  await page.addInitScript(() => localStorage.setItem('palianytsia-checkout', '{not json'))
+  await page.goto('/checkout')
+  await expect(page.getByLabel('Email')).toHaveValue('')
+  await fillContact(page)
+  await expect(page.getByRole('button', { name: 'Place order' })).toBeEnabled()
+})
+
+test('a phone number in any format is accepted as long as it has 10 digits', async ({ page }) => {
+  await setUp(page, [{ productId: 3, quantity: 1 }])
+  const orders = await captureOrders(page)
+  await page.goto('/checkout')
+  await page.getByLabel('Email').fill('olena@example.com')
+
+  const phone = page.getByLabel('Phone')
+  const place = page.getByRole('button', { name: 'Place order' })
+  await phone.fill('424 408 055')
+  await place.click()
+  await expect(page.getByRole('alert')).toContainText('at least 10 digits')
+  expect(orders).toHaveLength(0)
+
+  await phone.fill('call 424.408.0552 (cell)')
+  await place.click()
+  await expect(page.getByRole('heading', { name: 'Thank you! Your order has been placed.' })).toBeVisible()
+  expect(orders).toHaveLength(1)
+})
+
+test('an international phone number with more than 10 digits is accepted', async ({ page }) => {
+  await setUp(page, [{ productId: 3, quantity: 1 }])
+  const orders = await captureOrders(page)
+  await page.goto('/checkout')
+  await page.getByLabel('Email').fill('olena@example.com')
+  await page.getByLabel('Phone').fill('+44 20 7946 0958')
+  await page.getByRole('button', { name: 'Place order' }).click()
+  await expect(page.getByRole('heading', { name: 'Thank you! Your order has been placed.' })).toBeVisible()
+  expect(orders[0]!.phone).toBe('+44 20 7946 0958')
 })
