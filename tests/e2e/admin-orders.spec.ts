@@ -168,18 +168,27 @@ test('the three tabs are reachable with the arrow keys, wrapping around', async 
   await expect(page).toHaveURL('/admin/products')
 })
 
-test('an unpaid order has a Pay button in the top-right corner', async ({ page }) => {
+test('an unpaid order has a Pay button at the right, level with the heading and not in the header', async ({ page }) => {
   await mockAdmin(page)
   await page.goto('/order/AbCdEfGh12345678')
   await expect(page.getByText('Unpaid')).toBeVisible()
 
   const pay = page.getByRole('button', { name: 'Pay' })
   await expect(pay).toBeVisible()
-  const box = (await pay.boundingBox())!
-  const viewport = page.viewportSize()!
-  expect(box.y).toBeLessThan(80) // in the header, at the top
-  expect(box.x + box.width).toBeGreaterThan(viewport.width * 0.9) // against the right edge
-  expect(box.x).toBeGreaterThan(viewport.width / 2)
+  // It belongs to the page content, not the site header.
+  await expect(page.locator('header').getByRole('button', { name: 'Pay' })).toHaveCount(0)
+  await expect(page.getByRole('main').getByRole('button', { name: 'Pay' })).toHaveCount(1)
+
+  const button = (await pay.boundingBox())!
+  const heading = (await page.getByRole('heading', { level: 1 }).boundingBox())!
+  const headerLink = (await page.getByRole('link', { name: '← All orders' }).boundingBox())!
+  // Level with the <h1>: it starts within the heading's height, and sits below the header.
+  expect(button.y).toBeGreaterThanOrEqual(heading.y - 2)
+  expect(button.y).toBeLessThan(heading.y + heading.height)
+  expect(button.y).toBeGreaterThan(80)
+  // On the right, lined up with the right edge of the header above it.
+  expect(Math.abs(button.x + button.width - (headerLink.x + headerLink.width))).toBeLessThan(2)
+  expect(button.x).toBeGreaterThan(heading.x + heading.width / 2)
 })
 
 test('orders that are no longer unpaid have no Pay button', async ({ page }) => {

@@ -47,8 +47,6 @@ watch(() => route.params.slug, load, { immediate: true })
       </RouterLink>
       <div class="admin-header-actions">
         <RouterLink to="/admin/orders">← All orders</RouterLink>
-        <!-- Only unpaid orders can be paid. Taking payment is not built yet, so for now the button does nothing. -->
-        <button v-if="order?.status === 'unpaid'" class="action-button order-pay" type="button">Pay</button>
       </div>
     </header>
 
@@ -71,7 +69,11 @@ watch(() => route.params.slug, load, { immediate: true })
       </div>
 
       <article v-else-if="order">
-        <h1 class="admin-title order-title">Order <span class="order-reference">{{ order.slug }}</span></h1>
+        <div class="order-heading">
+          <h1 class="admin-title order-title">Order <span class="order-reference">{{ order.slug }}</span></h1>
+          <!-- Only unpaid orders can be paid. Taking payment is not built yet, so for now the button does nothing. -->
+          <button v-if="order.status === 'unpaid'" class="action-button order-pay" type="button">Pay</button>
+        </div>
         <p class="order-meta">
           <span class="order-status" :class="`is-${order.status}`">{{ orderStatusLabel(order.status) }}</span>
           · Placed {{ placedAt(order.createdAt) }}

@@ -249,7 +249,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .order-status.is-unpaid { color: #9a2b1d; }
 .order-status.is-paid, .order-status.is-delivered { color: #365c35; }
 .order-status.is-shipped { color: #765035; }
-.order-page { max-width: 960px; }
+/* As wide as the header, so the Pay button lines up with its right edge. */
+.order-page { max-width: none; }
 .order-title { margin-bottom: 8px; overflow-wrap: anywhere; }
 .order-title .order-reference { font-family: Consolas, monospace; font-size: .62em; letter-spacing: 1px; color: #765035; }
 .order-meta { margin: 0 0 28px; color: #6a6055; }
@@ -266,4 +267,6 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .order-total { margin-top: 6px; border-top: 1px solid #c5b8a7; font-size: 18px; font-weight: 700; }
 .order-total dt { color: inherit; }
 .order-pay { padding: 9px 22px; }
-.admin-shell .site-header { padding-block: 8px; }
+.order-heading { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 8px 20px; }
+.order-heading .order-title { flex: 1 1 280px; min-width: 0; }
+.order-heading .order-pay { margin: 6px 0 12px; white-space: nowrap; }
