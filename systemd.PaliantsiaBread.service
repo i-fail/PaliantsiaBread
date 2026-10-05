@@ -1,23 +1,27 @@
+# Palianytsia Bread API (Bun). Install on the server as /etc/systemd/system/palianytsia.service:
+#   sudo cp systemd.PaliantsiaBread.service /etc/systemd/system/palianytsia.service
+#   sudo systemctl daemon-reload && sudo systemctl enable --now palianytsia
 [Unit]
-Description=Paliantsia Bread Bun App
-After=network.target
+Description=Palianytsia Bread API
+After=network.target postgresql.service
 
 [Service]
 Type=simple
-User=cardify
-WorkingDirectory=/home/cardify/PaliantsiaBread
+User=pal
+WorkingDirectory=/home/pal/pal_website
+# Secure admin cookies; this requires the site to be served over HTTPS (see nginx/prod).
 Environment=NODE_ENV=production
-Environment=PORT=3000
-AmbientCapabilities=CAP_NET_BIND_SERVICE
-CapabilityBoundingSet=CAP_NET_BIND_SERVICE
-ExecStart=/home/cardify/.bun/bin/bun dev
+# The port nginx forwards /api/ to. The app reads API_PORT (not PORT) and listens on 127.0.0.1 only.
+Environment=API_PORT=38417
+# DATABASE_URL, ADMIN_PASSWORD and the Mailtrap settings are read from /home/pal/pal_website/.env: Bun
+# loads that file itself from the working directory. Keep it private with: chmod 600 .env
+ExecStart=/home/pal/.bun/bin/bun server/index.ts
 Restart=always
-RestartSec=1
+RestartSec=2
 KillSignal=SIGTERM
 TimeoutStopSec=20
-
-# Optional local environment overrides
-# EnvironmentFile=/home/cardify/PaliantsiaBread/.env
+NoNewPrivileges=true
+PrivateTmp=true
 
 [Install]
 WantedBy=multi-user.target
