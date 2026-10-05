@@ -2,6 +2,7 @@
 set -euo pipefail
 APP=/home/pal/pal_website
 
+git pull
 bun run db:migrate
 sudo systemctl restart palianytsia
 bun run build
