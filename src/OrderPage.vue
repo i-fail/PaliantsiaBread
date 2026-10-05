@@ -5,7 +5,7 @@ import { orderStatuses, orderStatusLabel, type OrderDetails, type OrderStatus } 
 import { formatPrice } from '../shared/products'
 import CartIndicator from './CartIndicator.vue'
 import { ApiError } from './content-api'
-import { getOrderDetails, isAdminSession, updateOrderStatus } from './orders-api'
+import { getOrderDetails, isAdminSession, startPayment, updateOrderStatus } from './orders-api'
 
 const year = new Date().getFullYear()
 const route = useRoute()
@@ -22,16 +22,115 @@ async function load() {
   notFound.value = false
   error.value = ''
   order.value = null
+  stopWaiting()
+  waitTimedOut.value = false
+  justPaid.value = false
+  payError.value = ''
+  paying.value = false
   try {
     const found = await getOrderDetails(slug)
     // Ignore a slow answer for an order the visitor already left.
-    if (slug === route.params.slug) order.value = found
+    if (slug === route.params.slug) {
+      order.value = found
+      // Just back from paying, but the confirmation has not arrived yet: keep checking for a minute.
+      if (found.status === 'unpaid' && hasPayFlag(slug)) waitForPayment(slug)
+    }
   } catch (cause) {
     if (slug !== route.params.slug) return
     if (cause instanceof ApiError && cause.status === 404) notFound.value = true
     else error.value = cause instanceof Error ? cause.message : 'Unable to load this order.'
   } finally {
     if (slug === route.params.slug) loading.value = false
+  }
+}
+
+// ---- Paying ----
+// Pay sends the customer to Square's checkout page. When they come back, Square's webhook may take a few seconds
+// to mark the order paid, so a customer who has just been to pay is shown the order updating, not a stale "Unpaid".
+const paying = ref(false)
+const payError = ref('')
+const waiting = ref(false)
+const waitTimedOut = ref(false)
+const justPaid = ref(false)
+const payFlagKey = 'palianytsia-payment-started'
+const payFlagLifetime = 30 * 60 * 1000
+const pollEvery = 3000
+const pollLimit = 20
+let pollTimer: number | undefined
+
+function setPayFlag(slug: string) {
+  try {
+    sessionStorage.setItem(payFlagKey, JSON.stringify({ slug, at: Date.now() }))
+  } catch {
+    // Without it the page simply will not wait for the confirmation; paying still works.
+  }
+}
+
+function hasPayFlag(slug: string) {
+  try {
+    const flag = JSON.parse(sessionStorage.getItem(payFlagKey) ?? 'null')
+    return flag?.slug === slug && typeof flag.at === 'number' && Date.now() - flag.at < payFlagLifetime
+  } catch {
+    return false
+  }
+}
+
+function clearPayFlag() {
+  try {
+    sessionStorage.removeItem(payFlagKey)
+  } catch {
+    // Nothing to clear.
+  }
+}
+
+function stopWaiting() {
+  window.clearTimeout(pollTimer)
+  waiting.value = false
+}
+
+function waitForPayment(slug: string) {
+  stopWaiting()
+  waiting.value = true
+  let attempts = 0
+  const poll = async () => {
+    attempts++
+    try {
+      const latest = await getOrderDetails(slug)
+      if (slug !== route.params.slug) return
+      if (latest.status !== 'unpaid') {
+        order.value = latest
+        justPaid.value = latest.status === 'paid'
+        clearPayFlag()
+        stopWaiting()
+        return
+      }
+    } catch {
+      // A hiccup: try again on the next round.
+    }
+    if (attempts >= pollLimit) {
+      clearPayFlag()
+      stopWaiting()
+      waitTimedOut.value = true
+      return
+    }
+    pollTimer = window.setTimeout(poll, pollEvery)
+  }
+  pollTimer = window.setTimeout(poll, pollEvery)
+}
+
+async function pay() {
+  const current = order.value
+  if (!current || paying.value) return
+  paying.value = true
+  payError.value = ''
+  try {
+    const url = await startPayment(current.slug)
+    setPayFlag(current.slug)
+    window.location.assign(url)
+    // The browser is leaving this page, so the button stays disabled.
+  } catch (cause) {
+    payError.value = cause instanceof Error ? cause.message : 'We couldn’t start the payment right now. Please try again, or contact us to pay.'
+    paying.value = false
   }
 }
 
@@ -81,7 +180,10 @@ onMounted(async () => {
   document.head.append(robots)
   isAdmin.value = await isAdminSession()
 })
-onBeforeUnmount(() => robots?.remove())
+onBeforeUnmount(() => {
+  robots?.remove()
+  stopWaiting()
+})
 
 watch(() => route.params.slug, load, { immediate: true })
 </script>
@@ -117,7 +219,7 @@ watch(() => route.params.slug, load, { immediate: true })
         <div class="order-heading">
           <h1 class="admin-title order-title">Order <span class="order-reference">{{ order.slug }}</span></h1>
           <!-- Only unpaid orders can be paid. Taking payment is not built yet, so for now the button does nothing. -->
-          <button v-if="order.status === 'unpaid'" class="action-button order-pay" type="button">Pay</button>
+          <button v-if="order.status === 'unpaid'" class="action-button order-pay" type="button" :disabled="paying" @click="pay">{{ paying ? 'Opening payment…' : 'Pay' }}</button>
         </div>
         <p class="order-meta">
           <label v-if="isAdmin" class="order-status-field">
@@ -131,7 +233,17 @@ watch(() => route.params.slug, load, { immediate: true })
             <strong class="order-status" :class="`is-${order.status}`" data-testid="order-status">{{ orderStatusLabel(order.status) }}</strong>
           </span>
           <span>Placed {{ placedAt(order.createdAt) }}</span>
+          <span v-if="order.paidAt">Paid {{ placedAt(order.paidAt) }}</span>
         </p>
+        <p v-if="payError" class="error-message order-status-note" role="alert">{{ payError }}</p>
+        <p v-if="waiting" class="order-wait" role="status">If you have just paid, this page will update in a moment…</p>
+        <p v-if="justPaid" class="save-message order-status-note" role="status">Payment received. Thank you!</p>
+        <p v-if="waitTimedOut" class="order-wait" role="status">We haven’t received the confirmation of your payment yet. If you paid, it can take a few minutes to appear here; please check back shortly.</p>
+        <div v-if="isAdmin && order.paymentProblem" class="payment-problem" role="alert">
+          <strong>A payment needs your attention.</strong>
+          <p>{{ order.paymentProblem }}</p>
+          <p>The order was not marked paid. Check the payment in Square, and if it is right, set the status yourself.</p>
+        </div>
         <p v-if="statusMessage" class="save-message order-status-note" role="status">{{ statusMessage }}</p>
         <p v-if="statusError" class="error-message order-status-note" role="alert">
           {{ statusError }}

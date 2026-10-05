@@ -217,6 +217,8 @@ interface OrderRow {
   shipped_units: number
   boxes: number
   currency: string
+  paid_at: Date | null
+  payment_problem: string | null
 }
 
 export function orderFromRow(row: OrderRow): OrderDetails {
@@ -238,12 +240,15 @@ export function orderFromRow(row: OrderRow): OrderDetails {
     shippedUnits: row.shipped_units,
     boxes: row.boxes,
     currency: row.currency,
+    paidAt: row.paid_at ? new Date(row.paid_at).toISOString() : null,
+    paymentProblem: row.payment_problem,
+    needsAttention: row.payment_problem !== null,
   }
 }
 
 export function summaryOf(order: OrderDetails): OrderSummary {
-  const { slug, status, createdAt, email, itemCount, shippedUnits, totalCents } = order
-  return { slug, status, createdAt, email, itemCount, shippedUnits, totalCents }
+  const { slug, status, createdAt, email, itemCount, shippedUnits, totalCents, needsAttention } = order
+  return { slug, status, createdAt, email, itemCount, shippedUnits, totalCents, needsAttention }
 }
 
 // The most recent orders first. The list is capped so the admin page stays quick.

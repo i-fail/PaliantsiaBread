@@ -263,6 +263,7 @@ describe('reading orders', () => {
       { productId: 3, sku: 'SKU-3', title: 'Cake', unitPriceCents: 3000, quantity: 1, delivery: 'pickup' as const },
     ],
     subtotal_cents: 7000, shipping_cents: 4000, total_cents: 11000, shipped_units: 4, boxes: 2, currency: 'USD',
+    paid_at: null as Date | null, payment_problem: null as string | null,
   }
 
   test('turns a stored row into the full order', () => {
@@ -270,7 +271,18 @@ describe('reading orders', () => {
       slug: 'AbCdEfGh12345678', status: 'unpaid', createdAt: '2026-10-04T12:30:00.000Z', email: 'olena@example.com', phone: '(424) 408-0552',
       address: { name: 'Olena K', street: '1 Main St', city: 'Costa Mesa', state: 'CA', zip: '92626' },
       items: row.items, itemCount: 5, subtotalCents: 7000, shippingCents: 4000, totalCents: 11000, shippedUnits: 4, boxes: 2, currency: 'USD',
+      paidAt: null, paymentProblem: null, needsAttention: false,
     })
+  })
+
+  test('carries the payment time and any payment problem', () => {
+    const paid = orderFromRow({ ...row, status: 'paid', paid_at: new Date('2026-10-05T01:02:03Z') })
+    expect(paid.paidAt).toBe('2026-10-05T01:02:03.000Z')
+    expect(paid.needsAttention).toBe(false)
+    const problem = orderFromRow({ ...row, payment_problem: 'Quantity differs' })
+    expect(problem.paymentProblem).toBe('Quantity differs')
+    expect(problem.needsAttention).toBe(true)
+    expect(summaryOf(problem).needsAttention).toBe(true)
   })
 
   test('has no address for a pickup order', () => {
@@ -280,7 +292,7 @@ describe('reading orders', () => {
 
   test('the list shows only a summary and never the phone number or address', () => {
     const summary = summaryOf(orderFromRow(row))
-    expect(summary).toEqual({ slug: 'AbCdEfGh12345678', status: 'unpaid', createdAt: '2026-10-04T12:30:00.000Z', email: 'olena@example.com', itemCount: 5, shippedUnits: 4, totalCents: 11000 })
+    expect(summary).toEqual({ slug: 'AbCdEfGh12345678', status: 'unpaid', createdAt: '2026-10-04T12:30:00.000Z', email: 'olena@example.com', itemCount: 5, shippedUnits: 4, totalCents: 11000, needsAttention: false })
     expect(JSON.stringify(summary)).not.toContain('Main St')
     expect(JSON.stringify(summary)).not.toContain('408-0552')
   })

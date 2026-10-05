@@ -104,6 +104,8 @@ export interface OrderSummary {
   itemCount: number
   shippedUnits: number
   totalCents: number
+  // True when a payment arrived that did not match the order, so it was not marked paid. Admins only.
+  needsAttention: boolean
 }
 
 // Everything stored about an order.
@@ -116,6 +118,10 @@ export interface OrderDetails extends OrderSummary {
   shippingCents: number
   boxes: number
   currency: string
+  // When the order was marked paid by a verified payment (not set when an admin changes the status).
+  paidAt: string | null
+  // What did not match, for a payment that was received but not accepted. Only ever sent to admins.
+  paymentProblem: string | null
 }
 
 export function orderStatusLabel(status: OrderStatus): string {

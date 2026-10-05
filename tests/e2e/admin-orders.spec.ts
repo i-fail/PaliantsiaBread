@@ -197,21 +197,6 @@ test('orders that are no longer unpaid have no Pay button', async ({ page }) => 
   await expect(page.getByRole('button', { name: 'Pay' })).toHaveCount(0)
 })
 
-test('the Pay button does nothing for now', async ({ page }) => {
-  await mockAdmin(page)
-  await page.goto('/order/AbCdEfGh12345678')
-  const pay = page.getByRole('button', { name: 'Pay' })
-  await expect(pay).toBeVisible()
-
-  const requests: string[] = []
-  page.on('request', request => requests.push(`${request.method()} ${request.url()}`))
-  await pay.click()
-  await pay.click()
-  await expect(page).toHaveURL('/order/AbCdEfGh12345678')
-  await expect(page.getByRole('combobox', { name: 'Status' })).toHaveValue('unpaid')
-  await expect(pay).toBeVisible()
-  expect(requests).toEqual([])
-})
 
 // A stateful stand-in for the API, so the page can be driven through several status changes.
 async function mockStatusApi(page: Page, initial = 'unpaid', respond?: (status: string) => { status: number; json: unknown } | null, admin = true) {
@@ -416,4 +401,231 @@ test('search engines are told to leave the order page out, and only that page', 
   await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Buy bread' }).click()
   await expect(page).toHaveURL('/buy')
   await expect(page.locator('meta[name="robots"]')).toHaveCount(0)
+})
+
+// ---- Paying with Square ----
+// Square's checkout page lives on another site; here a page on our own address stands in for it.
+
+async function mockPaying(page: Page, options: { admin?: boolean; order?: Record<string, unknown>; pay?: { status: number; json: unknown } } = {}) {
+  const order = { ...shipped, ...options.order }
+  const requests: string[] = []
+  await page.route('**/api/admin/session', route => route.fulfill({ json: { authenticated: options.admin ?? false } }))
+  await page.route('**/api/orders/*', route => route.fulfill({ json: order }))
+  await page.route('**/api/orders/*/pay', route => {
+    requests.push(route.request().method() + ' ' + new URL(route.request().url()).pathname)
+    return route.fulfill(options.pay ?? { json: { url: new URL(route.request().url()).origin + '/fake-square-checkout' } })
+  })
+  await page.route('**/fake-square-checkout', route => route.fulfill({ contentType: 'text/html', body: '<h1>Square checkout</h1>' }))
+  return { order, requests }
+}
+
+test('Pay asks the server for a checkout page and sends the customer there', async ({ page }) => {
+  const { requests } = await mockPaying(page)
+  await page.goto('/order/AbCdEfGh12345678')
+  await page.getByRole('button', { name: 'Pay' }).click()
+  await expect(page).toHaveURL('/fake-square-checkout')
+  await expect(page.getByRole('heading', { name: 'Square checkout' })).toBeVisible()
+  expect(requests).toEqual(['POST /api/orders/AbCdEfGh12345678/pay'])
+})
+
+test('Pay works the same for an admin', async ({ page }) => {
+  await mockPaying(page, { admin: true })
+  await page.goto('/order/AbCdEfGh12345678')
+  await page.getByRole('button', { name: 'Pay' }).click()
+  await expect(page).toHaveURL('/fake-square-checkout')
+})
+
+test('Pay cannot be clicked twice while the payment page is being prepared', async ({ page }) => {
+  const requests: string[] = []
+  let release!: () => void
+  const gate = new Promise<void>(resolve => { release = resolve })
+  await page.route('**/api/admin/session', route => route.fulfill({ json: { authenticated: false } }))
+  await page.route('**/api/orders/*', route => route.fulfill({ json: shipped }))
+  await page.route('**/api/orders/*/pay', async route => {
+    requests.push('pay')
+    await gate
+    await route.fulfill({ json: { url: new URL(route.request().url()).origin + '/fake-square-checkout' } })
+  })
+  await page.route('**/fake-square-checkout', route => route.fulfill({ contentType: 'text/html', body: '<h1>Square checkout</h1>' }))
+  await page.goto('/order/AbCdEfGh12345678')
+  const pay = page.getByRole('button', { name: 'Pay' })
+  await pay.click()
+  await expect(page.getByRole('button', { name: 'Opening payment…' })).toBeDisabled()
+  release()
+  await expect(page).toHaveURL('/fake-square-checkout')
+  expect(requests).toEqual(['pay'])
+})
+
+test('if the payment cannot be started the customer is told, stays on the order, and can try again', async ({ page }) => {
+  const { requests } = await mockPaying(page, { pay: { status: 502, json: { error: 'We couldn’t start the payment right now. Please try again, or contact us to pay.' } } })
+  await page.goto('/order/AbCdEfGh12345678')
+  await page.getByRole('button', { name: 'Pay' }).click()
+  await expect(page.getByRole('alert')).toContainText('couldn’t start the payment')
+  await expect(page).toHaveURL('/order/AbCdEfGh12345678')
+  const again = page.getByRole('button', { name: 'Pay' })
+  await expect(again).toBeEnabled()
+  await again.click()
+  await expect(page.getByRole('alert')).toBeVisible()
+  expect(requests).toHaveLength(2)
+})
+
+test('an answer that is not a web address is never followed', async ({ page }) => {
+  await mockPaying(page, { pay: { status: 200, json: { url: 'javascript:alert(1)' } } })
+  await page.goto('/order/AbCdEfGh12345678')
+  await page.getByRole('button', { name: 'Pay' }).click()
+  await expect(page.getByRole('alert')).toContainText('couldn’t start the payment')
+  await expect(page).toHaveURL('/order/AbCdEfGh12345678')
+})
+
+test('payment that is not set up yet is explained', async ({ page }) => {
+  await mockPaying(page, { pay: { status: 503, json: { error: 'Online payment is not available right now. Please contact us to pay.' } } })
+  await page.goto('/order/AbCdEfGh12345678')
+  await page.getByRole('button', { name: 'Pay' }).click()
+  await expect(page.getByRole('alert')).toContainText('not available right now')
+})
+
+// ---- Coming back from paying ----
+
+const justStartedPaying = (slug = 'AbCdEfGh12345678', ageMs = 0) =>
+  ({ key: 'palianytsia-payment-started', value: JSON.stringify({ slug, at: Date.now() - ageMs }) })
+
+// Moves the page's clock forward in 3-second steps. The page chains each new timer after a network answer, so
+// every step is given a moment to finish before the next one (a single big jump would fire only one timer).
+async function tick(page: Page, steps: number) {
+  for (let i = 0; i < steps; i++) {
+    await page.clock.runFor(3000)
+    await page.waitForTimeout(40)
+  }
+}
+
+async function comeBackFromPaying(page: Page, flag = justStartedPaying()) {
+  await page.addInitScript(({ key, value }) => sessionStorage.setItem(key, value), flag)
+}
+
+test('after paying, the page waits for the confirmation and then shows the order as paid', async ({ page }) => {
+  const order = { ...shipped }
+  let lookups = 0
+  await page.route('**/api/admin/session', route => route.fulfill({ json: { authenticated: false } }))
+  await page.route('**/api/orders/*', route => {
+    lookups++
+    // The webhook arrives after a few seconds: the third look finds the order paid.
+    if (lookups >= 3) Object.assign(order, { status: 'paid', paidAt: '2026-10-05T15:00:00.000Z' })
+    return route.fulfill({ json: order })
+  })
+  await comeBackFromPaying(page)
+  await page.clock.install()
+  await page.goto('/order/AbCdEfGh12345678')
+  await expect(page.getByTestId('order-status')).toHaveText('Unpaid')
+  await expect(page.getByText('If you have just paid, this page will update in a moment')).toBeVisible()
+
+  await tick(page, 2)
+  await expect(page.getByTestId('order-status')).toHaveText('Paid')
+  await expect(page.getByText('Payment received. Thank you!')).toBeVisible()
+  await expect(page.getByText('If you have just paid')).toHaveCount(0)
+  await expect(page.getByText(/^Paid October 5, 2026/)).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Pay' })).toHaveCount(0)
+
+  // It stops looking once it has the answer.
+  const before = lookups
+  await tick(page, 10)
+  expect(lookups).toBe(before)
+})
+
+test('if the confirmation never arrives, the page stops waiting and says so', async ({ page }) => {
+  let lookups = 0
+  await page.route('**/api/admin/session', route => route.fulfill({ json: { authenticated: false } }))
+  await page.route('**/api/orders/*', route => { lookups++; return route.fulfill({ json: shipped }) })
+  await comeBackFromPaying(page)
+  await page.clock.install()
+  await page.goto('/order/AbCdEfGh12345678')
+  await expect(page.getByText('If you have just paid')).toBeVisible()
+
+  await tick(page, 23)
+  await expect(page.getByText('We haven’t received the confirmation of your payment yet')).toBeVisible()
+  await expect(page.getByText('If you have just paid')).toHaveCount(0)
+  await expect(page.getByTestId('order-status')).toHaveText('Unpaid')
+  await expect(page.getByRole('button', { name: 'Pay' })).toBeVisible()
+  const stopped = lookups
+  await tick(page, 20)
+  expect(lookups).toBe(stopped)
+  // The first look, then at most one every 3 seconds for a minute.
+  expect(stopped).toBeLessThanOrEqual(22)
+})
+
+test('the page only waits for a customer who has just been to pay', async ({ page }) => {
+  for (const flag of [
+    undefined,
+    justStartedPaying('ZyXwVuTs87654321'),
+    justStartedPaying('AbCdEfGh12345678', 31 * 60 * 1000),
+  ]) {
+    const context = await page.context().browser()!.newContext()
+    const fresh = await context.newPage()
+    let lookups = 0
+    await fresh.route('**/api/admin/session', route => route.fulfill({ json: { authenticated: false } }))
+    await fresh.route('**/api/orders/*', route => { lookups++; return route.fulfill({ json: shipped }) })
+    if (flag) await comeBackFromPaying(fresh, flag)
+    await fresh.clock.install()
+    await fresh.goto('/order/AbCdEfGh12345678')
+    await expect(fresh.getByTestId('order-status')).toHaveText('Unpaid')
+    await expect(fresh.getByText('If you have just paid')).toHaveCount(0)
+    for (let i = 0; i < 6; i++) { await fresh.clock.runFor(3000); await fresh.waitForTimeout(40) }
+    expect(lookups).toBe(1)
+    await context.close()
+  }
+})
+
+test('a paid order never waits, even for a customer who has just been to pay', async ({ page }) => {
+  let lookups = 0
+  await page.route('**/api/admin/session', route => route.fulfill({ json: { authenticated: false } }))
+  await page.route('**/api/orders/*', route => { lookups++; return route.fulfill({ json: { ...shipped, status: 'paid' } }) })
+  await comeBackFromPaying(page)
+  await page.clock.install()
+  await page.goto('/order/AbCdEfGh12345678')
+  await expect(page.getByTestId('order-status')).toHaveText('Paid')
+  await expect(page.getByText('If you have just paid')).toHaveCount(0)
+  await tick(page, 6)
+  expect(lookups).toBe(1)
+})
+
+test('starting a payment leaves a note so the page can wait when the customer returns', async ({ page }) => {
+  await mockPaying(page)
+  await page.goto('/order/AbCdEfGh12345678')
+  await page.getByRole('button', { name: 'Pay' }).click()
+  await expect(page).toHaveURL('/fake-square-checkout')
+  const note = await page.evaluate(() => JSON.parse(sessionStorage.getItem('palianytsia-payment-started') ?? 'null'))
+  expect(note.slug).toBe('AbCdEfGh12345678')
+  expect(Math.abs(note.at - Date.now())).toBeLessThan(60000)
+})
+
+// ---- A payment that did not match ----
+
+const withProblem = { needsAttention: true, paymentProblem: 'Payment did not match the order: the order has Dark Rye (RYE-01) × 4 at $10.00 but Square does not; Square has Dark Rye (RYE-01) × 3 at $10.00 but the order does not.' }
+
+test('an admin is told about a payment that did not match, and what to do', async ({ page }) => {
+  await mockPaying(page, { admin: true, order: withProblem })
+  await page.goto('/order/AbCdEfGh12345678')
+  const notice = page.getByRole('alert').filter({ hasText: 'A payment needs your attention' })
+  await expect(notice).toBeVisible()
+  await expect(notice).toContainText('Dark Rye (RYE-01) × 3')
+  await expect(notice).toContainText('The order was not marked paid')
+  await expect(page.getByRole('combobox', { name: 'Status' })).toHaveValue('unpaid')
+})
+
+test('a visitor never sees a payment problem, even if one were sent to the page', async ({ page }) => {
+  await mockPaying(page, { admin: false, order: withProblem })
+  await page.goto('/order/AbCdEfGh12345678')
+  await expect(page.getByTestId('order-status')).toHaveText('Unpaid')
+  await expect(page.getByText('needs your attention')).toHaveCount(0)
+  await expect(page.getByText('Square does not')).toHaveCount(0)
+})
+
+test('the list of orders flags the ones with a payment problem', async ({ page }) => {
+  await mockAdmin(page, [shipped, pickup])
+  await page.route('**/api/admin/orders', route => route.fulfill({
+    json: [{ ...summary(shipped), needsAttention: true }, { ...summary(pickup), needsAttention: false }],
+  }))
+  await page.goto('/admin/orders')
+  const rows = page.getByRole('row')
+  await expect(rows.nth(1)).toContainText('Check payment')
+  await expect(rows.nth(2)).not.toContainText('Check payment')
 })

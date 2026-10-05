@@ -56,3 +56,14 @@ export async function updateOrderStatus(slug: string, status: OrderStatus): Prom
   if (!response.ok) throw new ApiError(body?.error || 'Unable to change the status. Please try again.', response.status)
   return body as OrderDetails
 }
+
+// Asks the server for Square's checkout page for this order. The address is checked before anyone is sent there.
+export async function startPayment(slug: string): Promise<string> {
+  const response = await fetch(`/api/orders/${encodeURIComponent(slug)}/pay`, { method: 'POST' })
+  const body = await response.json().catch(() => null)
+  if (!response.ok) throw new ApiError(body?.error || 'We couldn’t start the payment right now. Please try again, or contact us to pay.', response.status)
+  if (typeof body?.url !== 'string' || !/^https?:\/\//.test(body.url)) {
+    throw new ApiError('We couldn’t start the payment right now. Please try again, or contact us to pay.', 502)
+  }
+  return body.url
+}

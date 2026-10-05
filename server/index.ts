@@ -3,8 +3,10 @@ import { createAdminAuth } from './auth'
 import { clientAddress } from './client-address'
 import { createContactHandler, mailConfigFromEnv } from './contact'
 import { createRateLimiter } from './rate-limit'
+import { squareConfigFromEnv } from './square'
 import { cleanContent, ContentValidationError, readContent, saveContent } from './content'
 import { cleanOrderStatus, createOrderHandler, getOrder, listOrders, updateOrderStatus } from './orders'
+import { createDatabasePaymentStore, createPaymentHandlers } from './payments'
 import { processPhoto } from './photos'
 import { maxSlugLength, slugPattern } from './slug'
 import {
@@ -16,6 +18,9 @@ const maxJsonLength = 1024 * 1024
 
 const handleContact = createContactHandler({ config: mailConfigFromEnv(process.env) })
 const handleOrder = createOrderHandler({ loadProducts: () => listProducts({ enabledOnly: true }) })
+// Paying uses Square Payment Links: the customer pays on Square's page and Square's webhook marks the order paid.
+const squareConfig = squareConfigFromEnv(process.env)
+const payments = createPaymentHandlers({ config: squareConfig, store: createDatabasePaymentStore() })
 // Looking up an order needs only its random reference, so lookups are limited to keep guessing impractical.
 const orderLookups = createRateLimiter({ max: 120, windowMs: 5 * 60 * 1000 })
 
@@ -136,12 +141,23 @@ const server = Bun.serve({
         }
         try {
           const order = await getOrder(request.params.slug)
-          return order ? Response.json(order, { headers: { ...noStore, 'X-Robots-Tag': 'noindex' } }) : notFound()
+          if (!order) return notFound()
+          // A payment that did not match is for the admins to deal with; the customer is never shown it.
+          const visible = adminAuth.authorized(request) ? order : { ...order, paymentProblem: null, needsAttention: false }
+          return Response.json(visible, { headers: { ...noStore, 'X-Robots-Tag': 'noindex' } })
         } catch (error) {
           console.error('Order lookup failed:', error instanceof Error ? error.message : 'Unknown error')
           return Response.json({ error: 'This is temporarily unavailable. Please try again.' }, { status: 503 })
         }
       },
+    },
+    // Public: the customer clicked Pay. Returns the address of Square's checkout page for this order.
+    '/api/orders/:slug/pay': {
+      POST: async (request, server) => payments.startPayment(request.params.slug, clientAddress(request, server.requestIP(request)?.address)),
+    },
+    // Called by Square, not by browsers. Every request is checked against Square's signature before anything is trusted.
+    '/api/square/webhook': {
+      POST: async request => payments.handleWebhook(await request.text(), request.headers.get('x-square-hmacsha256-signature')),
     },
     // Public: sends the contact form to the bakery's inbox.
     '/api/contact': {
@@ -274,3 +290,4 @@ const server = Bun.serve({
 })
 
 console.log(`Bakery API listening at ${server.url}`)
+console.log(squareConfig ? `Payments: Square ${squareConfig.environment}${squareConfig.webhookSignatureKey && squareConfig.webhookUrl ? '' : ' (webhook NOT configured)'}` : 'Payments: not configured (Pay is disabled)')

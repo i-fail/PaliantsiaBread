@@ -69,7 +69,10 @@ onMounted(load)
             <td class="orders-number">{{ order.itemCount }}</td>
             <td>{{ order.shippedUnits > 0 ? 'Shipping' : 'Pickup' }}</td>
             <td class="orders-number">{{ formatPrice(order.totalCents) }}</td>
-            <td><span class="order-status" :class="`is-${order.status}`">{{ orderStatusLabel(order.status) }}</span></td>
+            <td>
+              <span class="order-status" :class="`is-${order.status}`">{{ orderStatusLabel(order.status) }}</span>
+              <span v-if="order.needsAttention" class="order-attention" title="A payment arrived that did not match this order">⚠ Check payment</span>
+            </td>
           </tr>
         </tbody>
       </table>
