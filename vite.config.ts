@@ -26,6 +26,7 @@ export default defineConfig(({ mode }) => {
       strictPort: true,
       proxy: {
         '/api': `http://127.0.0.1:${env.API_PORT || 3001}`,
+        '/sitemap.xml': `http://127.0.0.1:${env.API_PORT || 3001}`,
       },
     },
   }

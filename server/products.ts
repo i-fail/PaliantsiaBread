@@ -164,6 +164,7 @@ export async function addPhoto(productId: number, photo: ProcessedPhoto): Promis
       INSERT INTO product_photos (product_id, data, width, height)
       VALUES (${productId}, ${photo.data}, ${photo.width}, ${photo.height})
     `
+    await tx`UPDATE products SET updated_at = NOW() WHERE id = ${productId}`
     return true
   })
   return added ? getProduct(productId) : null
@@ -176,6 +177,7 @@ export async function setMainPhoto(productId: number, photoId: number): Promise<
     if (!photo) return false
     await tx`UPDATE product_photos SET is_main = FALSE WHERE product_id = ${productId} AND is_main`
     await tx`UPDATE product_photos SET is_main = TRUE WHERE id = ${photoId}`
+    await tx`UPDATE products SET updated_at = NOW() WHERE id = ${productId}`
     return true
   })
   return changed ? getProduct(productId) : null
@@ -184,6 +186,7 @@ export async function setMainPhoto(productId: number, photoId: number): Promise<
 export async function deletePhoto(productId: number, photoId: number): Promise<Product | null> {
   const db = getDatabase()
   const rows = await db`DELETE FROM product_photos WHERE id = ${photoId} AND product_id = ${productId} RETURNING id`
+  if (rows.length) await db`UPDATE products SET updated_at = NOW() WHERE id = ${productId}`
   return rows.length ? getProduct(productId) : null
 }
 

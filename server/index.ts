@@ -3,6 +3,7 @@ import { createAdminAuth } from './auth'
 import { clientAddress } from './client-address'
 import { createContactHandler, mailConfigFromEnv } from './contact'
 import { collectHealth } from './health'
+import { createSitemapHandler } from './sitemap'
 import { createRateLimiter } from './rate-limit'
 import { squareConfigFromEnv } from './square'
 import { cleanContent, ContentValidationError, readContent, saveContent } from './content'
@@ -19,6 +20,9 @@ const maxJsonLength = 1024 * 1024
 
 const handleContact = createContactHandler({ config: mailConfigFromEnv(process.env) })
 const handleOrder = createOrderHandler({ loadProducts: () => listProducts({ enabledOnly: true }) })
+// The sitemap is built from the database on each request, so new and disabled products appear and disappear by themselves.
+const handleSitemap = createSitemapHandler({ siteUrl: process.env.SITE_URL })
+
 // Paying uses Square Payment Links: the customer pays on Square's page and Square's webhook marks the order paid.
 const squareConfig = squareConfigFromEnv(process.env)
 const payments = createPaymentHandlers({ config: squareConfig, store: createDatabasePaymentStore() })
@@ -85,6 +89,15 @@ const server = Bun.serve({
   port: Number(process.env.API_PORT || 3001),
   maxRequestBodySize: productLimits.photoBytes + 1024 * 1024,
   routes: {
+    // Public: for search engines. Lists the home page, contact, buy, and every enabled product's page.
+    '/sitemap.xml': {
+      GET: request => handleSitemap(request),
+      // Monitors and some crawlers check with HEAD first: same status and headers, no body.
+      HEAD: async request => {
+        const response = await handleSitemap(request)
+        return new Response(null, { status: response.status, headers: response.headers })
+      },
+    },
     '/api/health': {
       GET: () => Response.json({ status: 'ok', service: 'palianytsia-bread' }),
     },
